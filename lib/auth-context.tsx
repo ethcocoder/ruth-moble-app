@@ -1,79 +1,98 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './_core/firebase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  createUserProfile,
+  getUserProfile,
+  updateUserProfile,
+  UserProfile,
+  UserRole,
+  UserStatus,
+  ThemePreference,
+  LanguagePreference,
+  hasAdminUser,
+} from './_core/firestore';
 
 interface AuthContextType {
   user: User | null;
-  userRole: 'customer' | 'staff' | 'admin' | null;
-  userStatus: 'pending' | 'approved' | 'rejected' | 'active' | null;
+  profile: UserProfile | null;
+  userRole: UserRole | null;
+  userStatus: UserStatus | null;
   loading: boolean;
   logout: () => Promise<void>;
-  setUserRole: (role: 'customer' | 'staff' | 'admin') => void;
-  setUserStatus: (status: 'pending' | 'approved' | 'rejected' | 'active') => void;
+  updateProfile: (updates: Partial<Pick<UserProfile, 'displayName' | 'language' | 'theme'>>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<'customer' | 'staff' | 'admin' | null>(null);
-  const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | 'active' | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
       setUser(firebaseUser);
-      
+
       if (firebaseUser) {
-        // Load user role and status from AsyncStorage
-        const savedRole = await AsyncStorage.getItem(`user_role_${firebaseUser.uid}`);
-        const savedStatus = await AsyncStorage.getItem(`user_status_${firebaseUser.uid}`);
-        
-        if (savedRole) setUserRole(savedRole as any);
-        if (savedStatus) setUserStatus(savedStatus as any);
+        const uid = firebaseUser.uid;
+        const savedProfile = await getUserProfile(uid);
+
+        if (savedProfile) {
+          setProfile(savedProfile);
+        } else {
+          const isAdmin = !(await hasAdminUser());
+          const role: UserRole = isAdmin ? 'admin' : 'staff';
+          const status: UserStatus = isAdmin ? 'approved' : 'pending';
+          const newProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
+            uid,
+            email: firebaseUser.email ?? '',
+            displayName: firebaseUser.displayName ?? '',
+            role,
+            status,
+            language: 'en',
+            theme: 'light',
+          };
+          await createUserProfile(newProfile);
+          setProfile({ ...newProfile, createdAt: null, updatedAt: null });
+        }
       } else {
-        setUserRole(null);
-        setUserStatus(null);
+        setProfile(null);
       }
-      
+
       setLoading(false);
     });
 
     return unsubscribe;
   }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await signOut(auth);
     setUser(null);
-    setUserRole(null);
-    setUserStatus(null);
-  };
+    setProfile(null);
+  }, []);
 
-  const updateUserRole = (role: 'customer' | 'staff' | 'admin') => {
-    setUserRole(role);
-    if (user) {
-      AsyncStorage.setItem(`user_role_${user.uid}`, role);
-    }
-  };
-
-  const updateUserStatus = (status: 'pending' | 'approved' | 'rejected' | 'active') => {
-    setUserStatus(status);
-    if (user) {
-      AsyncStorage.setItem(`user_status_${user.uid}`, status);
-    }
-  };
+  const updateProfile = useCallback(
+    async (updates: Partial<Pick<UserProfile, 'displayName' | 'language' | 'theme'>>) => {
+      if (!user) return;
+      const uid = user.uid;
+      await updateUserProfile(uid, updates);
+      setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
+    },
+    [user],
+  );
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        userRole,
-        userStatus,
+        profile,
+        userRole: profile?.role ?? null,
+        userStatus: profile?.status ?? null,
         loading,
         logout,
-        setUserRole: updateUserRole,
-        setUserStatus: updateUserStatus,
+        updateProfile,
       }}
     >
       {children}

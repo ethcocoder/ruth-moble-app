@@ -21,10 +21,10 @@ export default function PendingApprovalScreen() {
           </View>
           <Text className="text-2xl font-bold text-foreground text-center">Pending Approval</Text>
           <Text className="text-base text-muted text-center leading-relaxed">
-            Your account has been created successfully. An administrator will review and approve your account shortly.
+            Your account is waiting for admin approval. Please sit tight — you will gain access once an administrator approves your account.
           </Text>
           <Text className="text-sm text-muted text-center">
-            You will receive a notification once your account is approved.
+            If you already have an account, you can sign in again after approval.
           </Text>
         </View>
 

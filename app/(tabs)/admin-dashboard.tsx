@@ -1,115 +1,178 @@
-import { ScrollView, Text, View, TouchableOpacity, FlatList } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import { useAuthContext } from '@/lib/auth-context';
-
-const ADMIN_KPIs = [
-  { label: 'Total Users', value: '342', icon: '👥' },
-  { label: 'Pending Approvals', value: '5', icon: '⏳' },
-  { label: 'Total Revenue', value: '$45,230', icon: '💰' },
-  { label: 'Active Employees', value: '12', icon: '👔' },
-];
-
-const PENDING_APPROVALS = [
-  { id: '1', name: 'John Smith', role: 'Staff', email: 'john@example.com' },
-  { id: '2', name: 'Sarah Johnson', role: 'Staff', email: 'sarah@example.com' },
-  { id: '3', name: 'Mike Davis', role: 'Customer', email: 'mike@example.com' },
-];
+import { useRouter } from 'expo-router';
+import {
+  getPendingUsers,
+  getTotalRevenue,
+  getTotalUsersCount,
+  getApprovedStaffCount,
+  getTotalProductsCount,
+  getTotalStockCount,
+} from '@/lib/_core/firestore';
 
 export default function AdminDashboardScreen() {
-  const { user } = useAuthContext();
+  const { userRole, userStatus, loading: authLoading } = useAuthContext();
+  const router = useRouter();
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<number | null>(null);
+  const [approvedEmployees, setApprovedEmployees] = useState<number | null>(null);
+  const [totalRevenue, setTotalRevenue] = useState<number | null>(null);
+  const [totalProducts, setTotalProducts] = useState<number | null>(null);
+  const [totalStock, setTotalStock] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!userRole || !userStatus) {
+      router.replace('/auth/login');
+      return;
+    }
+
+    if (userStatus === 'pending') {
+      router.replace('/auth/pending');
+      return;
+    }
+
+    if (userRole !== 'admin' || userStatus !== 'approved') {
+      router.replace(userRole === 'staff' ? '/staff-dashboard' : '/auth/login');
+      return;
+    }
+
+    const loadSummary = async () => {
+      setLoading(true);
+      try {
+        const [usersCount, pendingUsers, approvedCount, revenue, productsCount, stockCount] = await Promise.all([
+          getTotalUsersCount(),
+          getPendingUsers(),
+          getApprovedStaffCount(),
+          getTotalRevenue(),
+          getTotalProductsCount(),
+          getTotalStockCount(),
+        ]);
+
+        setTotalUsers(usersCount);
+        setPendingApprovals(pendingUsers.length);
+        setApprovedEmployees(approvedCount);
+        setTotalRevenue(revenue);
+        setTotalProducts(productsCount);
+        setTotalStock(stockCount);
+      } catch (err) {
+        console.warn('Failed to load admin summary', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSummary();
+  }, [authLoading, router, userRole, userStatus]);
+
+  const topStats = [
+    {
+      title: 'Total Users',
+      value: totalUsers === null ? '--' : `${totalUsers}`,
+      accent: 'text-cyan-300',
+    },
+    {
+      title: 'Pending Approvals',
+      value: pendingApprovals === null ? '--' : `${pendingApprovals}`,
+      accent: 'text-amber-300',
+    },
+    {
+      title: 'Revenue',
+      value: totalRevenue === null ? '--' : `$${totalRevenue.toFixed(2)}`,
+      accent: 'text-emerald-300',
+    },
+    {
+      title: 'Employees',
+      value: approvedEmployees === null ? '--' : `${approvedEmployees}`,
+      accent: 'text-violet-300',
+    },
+  ];
 
   return (
     <ScreenContainer className="bg-background">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View className="px-6 py-6 gap-2 bg-primary/10">
-          <Text className="text-2xl font-bold text-foreground">Admin Dashboard</Text>
-          <Text className="text-muted">System Overview</Text>
-        </View>
+        <View className="px-6 py-6 space-y-6">
+          <View className="rounded-[32px] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-6 shadow-xl">
+            <Text className="text-sm uppercase tracking-[0.3em] text-cyan-300">Admin Console</Text>
+            <Text className="mt-4 text-3xl font-bold text-white">Master the business from one dashboard</Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-300">Track product flow, staff approvals and revenue with premium controls designed for fast decision making.</Text>
+            <View className="mt-6 flex-row flex-wrap gap-3">
+              <TouchableOpacity
+                onPress={() => router.push('/admin-users')}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-3"
+              >
+                <Text className="text-sm text-white">Manage Users</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push('/admin-products')}
+                className="rounded-full border border-white/10 bg-cyan-500 px-4 py-3"
+              >
+                <Text className="text-sm font-semibold text-slate-950">Manage Products</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push('/admin-reports')}
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-3"
+              >
+                <Text className="text-sm text-white">Reports</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        {/* KPIs */}
-        <View className="px-6 py-6 gap-3">
-          <FlatList
-            data={ADMIN_KPIs}
-            keyExtractor={(item) => item.label}
-            scrollEnabled={false}
-            numColumns={2}
-            columnWrapperStyle={{ gap: 12 }}
-            renderItem={({ item }) => (
-              <View className="flex-1 bg-surface rounded-lg p-4 items-center gap-2">
-                <Text className="text-3xl">{item.icon}</Text>
-                <Text className="text-muted text-xs text-center">{item.label}</Text>
-                <Text className="text-foreground font-bold text-lg">{item.value}</Text>
+          <View className="grid grid-cols-2 gap-4">
+            {topStats.map((item) => (
+              <View key={item.title} className="rounded-[28px] border border-border bg-surface p-5 shadow-sm">
+                <Text className="text-sm uppercase tracking-[0.2em] text-muted">{item.title}</Text>
+                <Text className={`mt-4 text-3xl font-semibold ${item.accent}`}>{item.value}</Text>
               </View>
-            )}
-          />
-        </View>
-
-        {/* Management Modules */}
-        <View className="px-6 py-4 gap-3">
-          <Text className="text-lg font-bold text-foreground">Management</Text>
-          <View className="gap-2">
-            <TouchableOpacity className="bg-surface border border-border rounded-lg py-3 px-4 flex-row justify-between items-center">
-              <Text className="text-foreground font-semibold">Users</Text>
-              <Text className="text-muted">→</Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="bg-surface border border-border rounded-lg py-3 px-4 flex-row justify-between items-center">
-              <Text className="text-foreground font-semibold">Products</Text>
-              <Text className="text-muted">→</Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="bg-surface border border-border rounded-lg py-3 px-4 flex-row justify-between items-center">
-              <Text className="text-foreground font-semibold">Orders</Text>
-              <Text className="text-muted">→</Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="bg-surface border border-border rounded-lg py-3 px-4 flex-row justify-between items-center">
-              <Text className="text-foreground font-semibold">Finance</Text>
-              <Text className="text-muted">→</Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="bg-surface border border-border rounded-lg py-3 px-4 flex-row justify-between items-center">
-              <Text className="text-foreground font-semibold">HR</Text>
-              <Text className="text-muted">→</Text>
-            </TouchableOpacity>
-            <TouchableOpacity className="bg-surface border border-border rounded-lg py-3 px-4 flex-row justify-between items-center">
-              <Text className="text-foreground font-semibold">CMS</Text>
-              <Text className="text-muted">→</Text>
-            </TouchableOpacity>
+            ))}
           </View>
-        </View>
 
-        {/* Pending Approvals */}
-        <View className="px-6 py-6 gap-3">
-          <View className="flex-row justify-between items-center">
-            <Text className="text-lg font-bold text-foreground">Pending Approvals</Text>
-            <TouchableOpacity>
-              <Text className="text-primary font-semibold text-sm">View All</Text>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={PENDING_APPROVALS}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            renderItem={({ item }) => (
-              <View className="bg-surface rounded-lg p-4 mb-2">
-                <View className="flex-row justify-between items-start mb-2">
-                  <View className="flex-1">
-                    <Text className="text-foreground font-semibold">{item.name}</Text>
-                    <Text className="text-muted text-xs mt-1">{item.email}</Text>
-                  </View>
-                  <View className="bg-warning/20 px-2 py-1 rounded">
-                    <Text className="text-warning text-xs font-semibold">{item.role}</Text>
-                  </View>
+          <View className="grid gap-4">
+            <View className="rounded-[28px] border border-border bg-surface p-5">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-lg font-semibold text-foreground">Approvals Overview</Text>
+                <Text className="text-sm text-muted">Live updates in real time</Text>
+              </View>
+              <View className="mt-4 grid grid-cols-2 gap-4">
+                <View className="rounded-3xl bg-[#111827] p-4">
+                  <Text className="text-xs uppercase tracking-[0.2em] text-cyan-300">Pending Staff</Text>
+                  <Text className="mt-3 text-3xl font-semibold text-white">{pendingApprovals === null ? '--' : pendingApprovals}</Text>
                 </View>
-                <View className="flex-row gap-2">
-                  <TouchableOpacity className="flex-1 bg-success rounded py-2">
-                    <Text className="text-background text-center font-semibold text-xs">Approve</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity className="flex-1 bg-error rounded py-2">
-                    <Text className="text-background text-center font-semibold text-xs">Reject</Text>
-                  </TouchableOpacity>
+                <View className="rounded-3xl bg-[#111827] p-4">
+                  <Text className="text-xs uppercase tracking-[0.2em] text-emerald-300">Active Products</Text>
+                  <Text className="mt-3 text-3xl font-semibold text-white">{totalProducts === null ? '--' : totalProducts}</Text>
                 </View>
               </View>
-            )}
-          />
+              <TouchableOpacity
+                onPress={() => router.push('/admin-users')}
+                className="mt-5 rounded-full bg-primary px-4 py-3 items-center"
+              >
+                <Text className="text-background font-semibold">Review pending staff</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View className="rounded-[28px] border border-border bg-surface p-5">
+              <Text className="text-lg font-semibold text-foreground mb-4">Business Health</Text>
+              <View className="space-y-3">
+                <View className="rounded-3xl border border-border bg-background/80 p-4 flex-row justify-between items-center">
+                  <Text className="text-sm text-muted">Revenue</Text>
+                  <Text className="text-foreground font-semibold">{totalRevenue === null ? '--' : `$${totalRevenue.toFixed(2)}`}</Text>
+                </View>
+                <View className="rounded-3xl border border-border bg-background/80 p-4 flex-row justify-between items-center">
+                  <Text className="text-sm text-muted">Approved Staff</Text>
+                  <Text className="text-foreground font-semibold">{approvedEmployees === null ? '--' : approvedEmployees}</Text>
+                </View>
+                <View className="rounded-3xl border border-border bg-background/80 p-4 flex-row justify-between items-center">
+                  <Text className="text-sm text-muted">Inventory</Text>
+                  <Text className="text-foreground font-semibold">{totalStock === null ? '--' : `${totalStock} units`}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
         </View>
       </ScrollView>
     </ScreenContainer>
