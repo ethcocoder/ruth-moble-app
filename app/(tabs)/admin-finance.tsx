@@ -9,13 +9,15 @@ import {
 } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import {
-  getSalesSummary, getTotalRevenue, getTotalProfit, getAllDailySales, DailySales, getTotalSalesCount } from '@/lib/_core/firestore';
+  getSalesSummary, getTotalRevenue, getTotalProfit, getAllSales, SaleRecord, getTotalSalesCount } from '@/lib/_core/firestore';
 import { useAuthContext } from '@/lib/auth-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 export default function AdminFinanceScreen() {
   const { userRole, userStatus, loading: authLoading } = useAuthContext();
   const router = useRouter();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dailySummary, setDailySummary] = useState({ totalAmount: 0, totalProfit: 0, saleCount: 0 });
@@ -24,32 +26,33 @@ export default function AdminFinanceScreen() {
   const [allTimeRevenue, setAllTimeRevenue] = useState(0);
   const [allTimeProfit, setAllTimeProfit] = useState(0);
   const [allTimeSalesCount, setAllTimeSalesCount] = useState(0);
-  const [dailySales, setDailySales] = useState<DailySales[]>([]);
+  const [sales, setSales] = useState<SaleRecord[]>([]);
 
   const loadData = async () => {
-    setRefreshing(true);
-    Promise.all([
-      getSalesSummary('day'),
-      getSalesSummary('week'),
-      getSalesSummary('month'),
-      getTotalRevenue(),
-      getTotalProfit(),
-      getTotalSalesCount(),
-      getAllDailySales(),
-    ]).then(([daily, weekly, monthly, revenue, profit, salesCount, dailySalesData]) => {
+    try {
+      setRefreshing(true);
+      const [daily, weekly, monthly, revenue, profit, salesCount, salesData] = await Promise.all([
+        getSalesSummary('day'),
+        getSalesSummary('week'),
+        getSalesSummary('month'),
+        getTotalRevenue(),
+        getTotalProfit(),
+        getTotalSalesCount(),
+        getAllSales(),
+      ]);
       setDailySummary(daily);
       setWeeklySummary(weekly);
       setMonthlySummary(monthly);
       setAllTimeRevenue(revenue);
       setAllTimeProfit(profit);
       setAllTimeSalesCount(salesCount);
-      setDailySales(dailySalesData);
-    }).catch((error) => {
+      setSales(salesData);
+    } catch (error) {
       console.error('Failed to load finance data:', error);
-    }).finally(() => {
+    } finally {
       setLoading(false);
       setRefreshing(false);
-    });
+    }
   };
 
   useEffect(() => {
@@ -98,8 +101,8 @@ export default function AdminFinanceScreen() {
             <Text className="text-lg font-semibold text-foreground">Daily</Text>
             <FlatList
               data={[
-                { label: 'Revenue', value: `$${dailySummary.totalAmount.toFixed(2)}` },
-                { label: 'Profit', value: `$${dailySummary.totalProfit.toFixed(2)}` },
+                { label: 'Revenue', value: `${dailySummary.totalAmount.toFixed(2)} ETB` },
+                { label: 'Profit', value: `${dailySummary.totalProfit.toFixed(2)} ETB` },
               ]}
               keyExtractor={(item) => item.label}
               scrollEnabled={false}
@@ -119,8 +122,8 @@ export default function AdminFinanceScreen() {
             <Text className="text-lg font-semibold text-foreground">Weekly</Text>
             <FlatList
               data={[
-                { label: 'Revenue', value: `$${weeklySummary.totalAmount.toFixed(2)}` },
-                { label: 'Profit', value: `$${weeklySummary.totalProfit.toFixed(2)}` },
+                { label: 'Revenue', value: `${weeklySummary.totalAmount.toFixed(2)} ETB` },
+                { label: 'Profit', value: `${weeklySummary.totalProfit.toFixed(2)} ETB` },
               ]}
               keyExtractor={(item) => item.label}
               scrollEnabled={false}
@@ -140,8 +143,8 @@ export default function AdminFinanceScreen() {
             <Text className="text-lg font-semibold text-foreground">Monthly</Text>
             <FlatList
               data={[
-                { label: 'Revenue', value: `$${monthlySummary.totalAmount.toFixed(2)}` },
-                { label: 'Profit', value: `$${monthlySummary.totalProfit.toFixed(2)}` },
+                { label: 'Revenue', value: `${monthlySummary.totalAmount.toFixed(2)} ETB` },
+                { label: 'Profit', value: `${monthlySummary.totalProfit.toFixed(2)} ETB` },
               ]}
               keyExtractor={(item) => item.label}
               scrollEnabled={false}
@@ -161,8 +164,8 @@ export default function AdminFinanceScreen() {
             <Text className="text-lg font-semibold text-foreground">All Time</Text>
             <FlatList
               data={[
-                { label: 'Revenue', value: `$${allTimeRevenue.toFixed(2)}` },
-                { label: 'Profit', value: `$${allTimeProfit.toFixed(2)}` },
+                { label: 'Revenue', value: `${allTimeRevenue.toFixed(2)} ETB` },
+                { label: 'Profit', value: `${allTimeProfit.toFixed(2)} ETB` },
               ]}
               keyExtractor={(item) => item.label}
               scrollEnabled={false}
@@ -186,21 +189,48 @@ export default function AdminFinanceScreen() {
           {/* Daily Sales Section */}
           <View className="gap-2">
             <Text className="text-lg font-semibold text-foreground">Daily Sales</Text>
-            {dailySales.length === 0 ? (
+            {sales.length === 0 ? (
               <View className="items-center py-10">
-                <Text className="text-muted">No daily sales records yet.</Text>
+                <Text className="text-muted">No sales records yet.</Text>
               </View>
             ) : (
               <View className="gap-3">
-                {dailySales.map((sale) => (
-                  <View key={sale.id} className="bg-surface rounded-lg p-4 gap-2">
-                    <Text className="text-foreground font-semibold">{sale.saleDate}</Text>
-                    <View className="flex-row justify-between">
-                      <Text className="text-primary font-bold">${sale.totalAmount.toFixed(2)}</Text>
-                      <Text className="text-green-600 font-bold">+${sale.totalProfit.toFixed(2)}</Text>
+                {(() => {
+                  // Group sales by date
+                  const groupedByDate = sales.reduce((groups, sale) => {
+                    let dateStr = 'Unknown Date';
+                    if (sale.createdAt) {
+                      const date = sale.createdAt.toDate ? sale.createdAt.toDate() : new Date(sale.createdAt);
+                      dateStr = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+                    }
+                    if (!groups[dateStr]) {
+                      groups[dateStr] = [];
+                    }
+                    groups[dateStr].push(sale);
+                    return groups;
+                  }, {} as Record<string, SaleRecord[]>);
+
+                  // Calculate totals per date
+                  const dateTotals = Object.entries(groupedByDate).map(([date, dateSales]) => {
+                    const totalAmount = dateSales.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+                    const totalProfit = dateSales.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
+                    return { date, totalAmount, totalProfit, count: dateSales.length };
+                  });
+
+                  // Sort dates in descending order
+                  dateTotals.sort((a, b) => b.date.localeCompare(a.date));
+
+                  return dateTotals.map(({ date, totalAmount, totalProfit, count }) => (
+                    <View key={date} className="bg-surface rounded-lg p-4 gap-2">
+                      <Text className="text-foreground font-semibold">{date}</Text>
+                      <Text className="text-muted text-sm">{count} sale{count !== 1 ? 's' : ''}</Text>
+                      <View className="flex-row justify-between">
+                        <Text className="text-primary font-bold">{totalAmount.toFixed(2)} ETB</Text>
+                        <Text className="text-green-600 font-bold">+{totalProfit.toFixed(2)} ETB</Text>
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  ));
+                })()}
               </View>
             )}
           </View>

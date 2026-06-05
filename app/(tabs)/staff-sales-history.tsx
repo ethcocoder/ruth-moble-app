@@ -11,12 +11,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthContext } from '@/lib/auth-context';
 import { useColors } from '@/hooks/use-colors';
+import { useTranslation } from 'react-i18next';
 import { getSalesByStaff, getProducts, SaleRecord, Product } from '@/lib/_core/firestore';
 import { format } from 'date-fns';
 
 export default function StaffSalesHistoryScreen() {
   const { user } = useAuthContext();
   const colors = useColors();
+  const { t } = useTranslation();
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ export default function StaffSalesHistoryScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Sales History</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t('history.title')}</Text>
       </View>
 
       <ScrollView
@@ -83,8 +85,12 @@ export default function StaffSalesHistoryScreen() {
         }
       >
         <View style={styles.filtersContainer}>
-          <Text style={[styles.filterLabel, { color: colors.text }]}>Filters</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <Text style={[styles.filterLabel, { color: colors.text }]}>{t('common.filters')}</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={true}
+            contentContainerStyle={{ paddingRight: 20 }}
+          >
             <TouchableOpacity
               style={[
                 styles.filterChip,
@@ -94,7 +100,7 @@ export default function StaffSalesHistoryScreen() {
               onPress={() => setFilterProduct(null)}
             >
               <Text style={[styles.filterChipText, { color: !filterProduct ? colors.tint : colors.text }]}>
-                All Products
+                {t('history.allProducts')}
               </Text>
             </TouchableOpacity>
             {products.map((product) => (
@@ -118,7 +124,7 @@ export default function StaffSalesHistoryScreen() {
         {filteredSales.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyStateText, { color: colors.muted }]}>
-              No sales found.
+              {t('history.noSales')}
             </Text>
           </View>
         ) : (
@@ -130,7 +136,7 @@ export default function StaffSalesHistoryScreen() {
                     {sale.createdAt ? format(sale.createdAt.toDate(), 'MMM d, yyyy h:mm a') : 'No date'}
                   </Text>
                   <Text style={[styles.saleTotal, { color: colors.tint }]}>
-                    ${sale.totalAmount.toFixed(2)}
+                    {sale.totalAmount.toFixed(2)} ETB
                   </Text>
                 </View>
                 <View style={styles.saleItems}>

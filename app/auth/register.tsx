@@ -3,11 +3,16 @@ import { useState } from 'react';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, signInWithGoogle } from '@/lib/_core/firebase';
 import { ScreenContainer } from '@/components/screen-container';
+import { OfflineBanner } from '@/components/offline-banner';
 import { useRouter } from 'expo-router';
-import { createUserProfile, getUserProfile, hasAdminUser, UserRole, UserStatus } from '@/lib/_core/firestore';
+import { createUserProfile, getUserProfile, hasAdminUser, UserRole, UserStatus, createNotification } from '@/lib/_core/firestore';
 import { FontAwesome } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import { useNetworkValidation } from '@/lib/use-network-validation';
 
 export default function RegisterScreen() {
+  const { t } = useTranslation();
+  const { validateNetwork } = useNetworkValidation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -16,6 +21,10 @@ export default function RegisterScreen() {
   const router = useRouter();
 
   const handleRegister = async () => {
+    // Validate network before operation
+    const isOnline = await validateNetwork('Create Account');
+    if (!isOnline) return;
+
     if (!email || !password || !displayName) {
       setError('Please fill in all fields');
       return;
@@ -46,6 +55,14 @@ export default function RegisterScreen() {
         theme: 'light',
       });
 
+      if (!isAdmin) {
+        await createNotification({
+          type: 'user_signup',
+          title: 'New User Signup',
+          message: `${displayName} (${email}) has signed up and is waiting for approval.`,
+        });
+      }
+
       router.replace(isAdmin ? '/admin-dashboard' : '/auth/pending');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -55,6 +72,10 @@ export default function RegisterScreen() {
   };
 
   const handleGoogleSignUp = async () => {
+    // Validate network before operation
+    const isOnline = await validateNetwork('Create Account');
+    if (!isOnline) return;
+
     setLoading(true);
     setError('');
 
@@ -90,6 +111,14 @@ export default function RegisterScreen() {
         theme: 'light',
       });
 
+      if (!isAdmin) {
+        await createNotification({
+          type: 'user_signup',
+          title: 'New User Signup',
+          message: `${user.displayName || user.email} has signed up and is waiting for approval.`,
+        });
+      }
+
       router.replace(isAdmin ? '/admin-dashboard' : '/auth/pending');
     } catch (err: any) {
       setError(err.message || 'Google sign-in failed');
@@ -100,6 +129,7 @@ export default function RegisterScreen() {
 
   return (
     <ScreenContainer className="bg-background">
+      <OfflineBanner />
       <View className="absolute inset-0 bg-gradient-to-b from-[#0f80b8] via-[#2aa1d7] to-[#e7f5fd]" />
       <View className="absolute -right-10 top-24 h-48 w-48 rounded-full bg-white/15 blur-2xl" />
       <View className="absolute -left-10 top-32 h-32 w-32 rounded-full bg-white/10 blur-2xl" />

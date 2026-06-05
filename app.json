@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "ruth-tracking",
+    "slug": "ruth-tracking",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/ruth-tracking.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/ruth-tracking.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ruth.ruthtracking",
+      "googleServicesFile": "./GoogleService-Info.plist"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/ruth-tracking.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.ruth.ruthtracking"
+    },
+    "web": {
+      "favicon": "./assets/images/ruth-tracking.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "720387cf-70a6-48ec-b177-f9b9762b2cf0"
+      }
+    }
+  }
+}

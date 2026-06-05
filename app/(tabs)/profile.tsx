@@ -1,28 +1,27 @@
-import { ScrollView, Text, View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { ScrollView, Text, View, TextInput, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import { useAuthContext } from '@/lib/auth-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useThemeContext } from '@/lib/theme-provider';
-
-const LANGUAGE_OPTIONS = [
-  { value: 'en', label: 'English' },
-  { value: 'am', label: 'Amharic' },
-] as const;
-
-const THEME_OPTIONS = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-] as const;
+import { useTranslation } from 'react-i18next';
 
 export default function ProfileScreen() {
-  const { user, profile, logout, updateProfile, loading } = useAuthContext();
+  const { user, profile, logout, updateProfile, loading, changePassword } = useAuthContext();
   const { setColorScheme } = useThemeContext();
   const router = useRouter();
+  const { t } = useTranslation();
   const [displayName, setDisplayName] = useState(profile?.displayName ?? '');
   const [language, setLanguage] = useState(profile?.language ?? 'en');
   const [theme, setTheme] = useState(profile?.theme ?? 'light');
   const [saving, setSaving] = useState(false);
+  
+  // Change password state
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -35,6 +34,41 @@ export default function ProfileScreen() {
     await updateProfile({ displayName, language, theme });
     setColorScheme(theme);
     setSaving(false);
+  };
+
+  const handleCancel = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowChangePassword(false);
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert(t('common.error'), t('profile.fillAllFields'));
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      Alert.alert(t('common.error'), t('profile.passwordLength'));
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert(t('common.error'), t('profile.passwordMismatch'));
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      await changePassword(currentPassword, newPassword);
+      Alert.alert(t('common.success'), t('profile.passwordChanged'));
+      handleCancel();
+    } catch (err: any) {
+      Alert.alert(t('common.error'), t('profile.passwordError'));
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   if (loading) {
@@ -51,18 +85,28 @@ export default function ProfileScreen() {
     return (
       <ScreenContainer className="bg-background">
         <View className="flex-1 justify-center items-center px-6 gap-4">
-          <Text className="text-2xl font-bold text-foreground">Sign In Required</Text>
-          <Text className="text-muted text-center">Please sign in to view your profile</Text>
+          <Text className="text-2xl font-bold text-foreground">{t('auth.signIn')}</Text>
+          <Text className="text-muted text-center">{t('auth.loginSubtitle')}</Text>
           <TouchableOpacity
             onPress={() => router.push('/auth/login')}
             className="w-full bg-primary rounded-lg py-3 items-center"
           >
-            <Text className="text-background font-semibold">Sign In</Text>
+            <Text className="text-background font-semibold">{t('auth.signIn')}</Text>
           </TouchableOpacity>
         </View>
       </ScreenContainer>
     );
   }
+
+  const LANGUAGE_OPTIONS = [
+    { value: 'en', label: t('profile.english') },
+    { value: 'am', label: t('profile.amharic') },
+  ] as const;
+
+  const THEME_OPTIONS = [
+    { value: 'light', label: t('profile.light') },
+    { value: 'dark', label: t('profile.dark') },
+  ] as const;
 
   return (
     <ScreenContainer className="bg-background">
@@ -91,10 +135,10 @@ export default function ProfileScreen() {
         </View>
 
         <View className="px-6 py-6 gap-4">
-          <Text className="text-lg font-bold text-foreground">Account Settings</Text>
+          <Text className="text-lg font-bold text-foreground">{t('profile.displayName')}</Text>
           <View className="bg-surface rounded-lg p-4 gap-4">
             <View>
-              <Text className="text-muted mb-2">Full Name</Text>
+              <Text className="text-muted mb-2">{t('profile.displayName')}</Text>
               <TextInput
                 className="bg-background border border-border rounded-lg px-4 py-3 text-foreground"
                 value={displayName}
@@ -103,7 +147,7 @@ export default function ProfileScreen() {
             </View>
 
             <View>
-              <Text className="text-muted mb-2">Language</Text>
+              <Text className="text-muted mb-2">{t('profile.language')}</Text>
               <View className="flex-row gap-2 flex-wrap">
                 {LANGUAGE_OPTIONS.map((option) => (
                   <TouchableOpacity
@@ -122,7 +166,7 @@ export default function ProfileScreen() {
             </View>
 
             <View>
-              <Text className="text-muted mb-2">Theme</Text>
+              <Text className="text-muted mb-2">{t('profile.theme')}</Text>
               <View className="flex-row gap-2 flex-wrap">
                 {THEME_OPTIONS.map((option) => (
                   <TouchableOpacity
@@ -145,9 +189,20 @@ export default function ProfileScreen() {
               className="bg-primary rounded-lg py-3 items-center"
               disabled={saving}
             >
-              {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-background font-semibold">Save Settings</Text>}
+              {saving ? <ActivityIndicator color="#fff" /> : <Text className="text-background font-semibold">{t('common.save')}</Text>}
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Change Password Section */}
+        <View className="px-6 py-6 gap-4">
+          <Text className="text-lg font-bold text-foreground">{t('profile.security')}</Text>
+          <TouchableOpacity
+            onPress={() => setShowChangePassword(true)}
+            className="bg-surface rounded-lg p-4"
+          >
+            <Text className="text-foreground font-semibold">{t('profile.changePassword')}</Text>
+          </TouchableOpacity>
         </View>
 
         <View className="px-6 py-6 gap-3 mb-4">
@@ -155,10 +210,77 @@ export default function ProfileScreen() {
             onPress={handleLogout}
             className="bg-error/10 border border-error rounded-lg py-3 items-center"
           >
-            <Text className="text-error font-semibold">Sign Out</Text>
+            <Text className="text-error font-semibold">{t('profile.signOut')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Change Password Modal */}
+      <Modal
+        visible={showChangePassword}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCancel}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center p-4">
+          <View className="bg-background rounded-xl p-6 w-full max-w-md gap-4">
+            <Text className="text-xl font-bold text-foreground mb-2">{t('profile.changePassword')}</Text>
+            
+            <View>
+              <Text className="text-muted mb-2">{t('profile.currentPassword')}</Text>
+              <TextInput
+                className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                placeholder={t('profile.currentPassword')}
+                placeholderTextColor="#9ca3af"
+              />
+            </View>
+            
+            <View>
+              <Text className="text-muted mb-2">{t('profile.newPassword')}</Text>
+              <TextInput
+                className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                placeholder={t('profile.newPassword')}
+                placeholderTextColor="#9ca3af"
+              />
+            </View>
+            
+            <View>
+              <Text className="text-muted mb-2">{t('profile.confirmPassword')}</Text>
+              <TextInput
+                className="bg-surface border border-border rounded-lg px-4 py-3 text-foreground"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                placeholder={t('profile.confirmPassword')}
+                placeholderTextColor="#9ca3af"
+              />
+            </View>
+            
+            <View className="flex-row gap-3 mt-2">
+              <TouchableOpacity
+                onPress={handleCancel}
+                className="flex-1 bg-surface border border-border rounded-lg py-3 items-center"
+              >
+                <Text className="text-foreground font-semibold">{t('common.cancel')}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={handleChangePassword}
+                className="flex-1 bg-primary rounded-lg py-3 items-center"
+                disabled={changingPassword}
+              >
+                {changingPassword ? <ActivityIndicator color="#fff" /> : <Text className="text-background font-semibold">{t('common.update')}</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }

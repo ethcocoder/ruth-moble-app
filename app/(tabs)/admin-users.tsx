@@ -3,11 +3,15 @@ import { FlatList, Text, TouchableOpacity, View, ActivityIndicator } from 'react
 import { ScreenContainer } from '@/components/screen-container';
 import { useAuthContext } from '@/lib/auth-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { approveUser, getPendingUsers, rejectUser, UserProfile } from '@/lib/_core/firestore';
+import { useNetworkValidation } from '@/lib/use-network-validation';
 
 export default function AdminUsersScreen() {
   const { profile, userRole, userStatus, loading: authLoading } = useAuthContext();
   const router = useRouter();
+  const { t } = useTranslation();
+  const { validateNetwork } = useNetworkValidation();
   const [pending, setPending] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -40,6 +44,10 @@ export default function AdminUsersScreen() {
   }, [authLoading, router, userRole, userStatus]);
 
   const handleAction = async (uid: string, action: 'approve' | 'reject') => {
+    // Validate network before operation
+    const isOnline = await validateNetwork(action === 'approve' ? 'Approve User' : 'Reject User');
+    if (!isOnline) return;
+
     setSaving(uid);
     try {
       if (action === 'approve') {
@@ -71,7 +79,7 @@ export default function AdminUsersScreen() {
         <View className="flex-row justify-between items-center">
           <Text className="text-2xl font-bold text-foreground">Pending Staff Approvals</Text>
           <TouchableOpacity onPress={() => router.push('/admin-reports')} className="bg-primary px-4 py-2 rounded-lg">
-            <Text className="text-background font-semibold">Reports</Text>
+            <Text className="text-background font-semibold">{t('tab.reports')}</Text>
           </TouchableOpacity>
         </View>
 

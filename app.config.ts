@@ -21,12 +21,12 @@ const bundleId =
 
 const env = {
   // App branding - update these values directly (do not use env vars)
-  appName: "Kitch",
+  appName: "ruth-tracking",
   appSlug: "kitch-mobile-app",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663125526004/Ue58tyGQwDJZcyVWVYufpQ/icon-DufUt62MA4ztRyS5LVb4cn.webp",
-  scheme: "kitch",
+  logoUrl: "",
+  scheme: "ruth-tracking",
   iosBundleId: bundleId,
   androidPackage: bundleId,
 };
@@ -36,23 +36,22 @@ const config: ExpoConfig = {
   slug: env.appSlug,
   version: "1.0.0",
   orientation: "portrait",
-  icon: "./assets/images/icon.png",
+  icon: "./assets/images/ruth-tracking.png",
   scheme: env.scheme,
-  userInterfaceStyle: "automatic",
+  userInterfaceStyle: "light",
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
+    googleServicesFile: "./GoogleService-Info.plist",
     "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
   },
   android: {
     adaptiveIcon: {
-      backgroundColor: "#E6F4FE",
-      foregroundImage: "./assets/images/android-icon-foreground.png",
-      backgroundImage: "./assets/images/android-icon-background.png",
-      monochromeImage: "./assets/images/android-icon-monochrome.png",
+      backgroundColor: "#ffffff",
+      foregroundImage: "./assets/images/ruth-tracking.png",
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
@@ -75,7 +74,7 @@ const config: ExpoConfig = {
   web: {
     bundler: "metro",
     output: "static",
-    favicon: "./assets/images/favicon.png",
+    favicon: "./assets/images/ruth-tracking.png",
   },
   plugins: [
     "expo-router",
@@ -95,7 +94,7 @@ const config: ExpoConfig = {
     [
       "expo-splash-screen",
       {
-        image: "./assets/images/splash-icon.png",
+        image: "./assets/images/ruth-tracking.png",
         imageWidth: 200,
         resizeMode: "contain",
         backgroundColor: "#ffffff",
@@ -118,6 +117,11 @@ const config: ExpoConfig = {
     typedRoutes: true,
     reactCompiler: true,
   },
+  extra: {
+    eas: {
+      projectId: "720387cf-70a6-48ec-b177-f9b9762b2cf0"
+    }
+  }
 };
 
 export default config;

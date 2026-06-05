@@ -3,11 +3,14 @@ import { ScrollView, Text, View, TouchableOpacity, FlatList, ActivityIndicator, 
 import { ScreenContainer } from '@/components/screen-container';
 import { useAuthContext } from '@/lib/auth-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { getActiveProducts, getSalesByStaff, Product, SaleRecord } from '@/lib/_core/firestore';
+import { Card, CardHeader, CardTitle, CardContent, PressableCard } from '@/components/ui/card';
 
 export default function StaffDashboardScreen() {
   const { profile, userRole, userStatus, loading: authLoading } = useAuthContext();
   const router = useRouter();
+  const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [recentSales, setRecentSales] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,27 +85,31 @@ export default function StaffDashboardScreen() {
   const recentSalesList = useMemo(() => recentSales.slice(0, 5), [recentSales]);
 
   const kpis = [
-    { label: 'Total Products', value: `${totalProducts}`, icon: '📦' },
-    { label: 'Low Stock', value: `${lowStockCount}`, icon: '⚠️' },
-    { label: "Today's Sales", value: `${salesToday}`, icon: '🧾' },
-    { label: 'Daily Revenue', value: `$${revenueToday.toFixed(2)}`, icon: '💵' },
+    { label: 'Products', value: `${totalProducts}`, icon: 'inventory' },
+    { label: 'Low Stock', value: `${lowStockCount}`, icon: 'warning' },
+    { label: 'Today Sales', value: `${salesToday}`, icon: 'shopping_cart' },
+    { label: 'Today Revenue', value: `${revenueToday.toFixed(0)} ETB`, icon: 'attach_money' },
   ];
 
   return (
     <ScreenContainer className="bg-background">
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <View className="px-6 py-6 gap-2 bg-primary/10">
-          <Text className="text-2xl font-bold text-foreground">Staff Dashboard</Text>
-          <Text className="text-muted">Live sales and inventory insights.</Text>
+        {/* Header Section */}
+        <View className="px-6 pt-6 pb-4">
+          <Text className="text-3xl font-bold text-foreground">Dashboard</Text>
+          <Text className="text-muted text-lg mt-1">Welcome back, {profile?.displayName || 'User'}!</Text>
         </View>
 
-        <View className="px-6 py-6 gap-3">
+        {/* KPI Grid */}
+        <View className="px-6 py-2">
           {loading ? (
-            <ActivityIndicator color="#0a7ea4" />
+            <View className="flex-1 items-center justify-center py-12">
+              <ActivityIndicator size="large" color="var(--color-primary)" />
+            </View>
           ) : (
             <FlatList
               data={kpis}
@@ -111,73 +118,83 @@ export default function StaffDashboardScreen() {
               numColumns={2}
               columnWrapperStyle={{ gap: 12 }}
               renderItem={({ item }) => (
-                <View className="flex-1 bg-surface rounded-lg p-4 items-center gap-2">
-                  <Text className="text-3xl">{item.icon}</Text>
-                  <Text className="text-muted text-xs text-center">{item.label}</Text>
-                  <Text className="text-foreground font-bold text-lg">{item.value}</Text>
-                </View>
+                <Card className="flex-1 items-center justify-center p-4">
+                  <CardContent className="py-4 items-center">
+                    <View className="w-12 h-12 bg-primary/10 rounded-full items-center justify-center mb-3">
+                      <Text className="text-primary text-2xl">{item.icon === 'inventory' ? '📦' : item.icon === 'warning' ? '⚠️' : item.icon === 'shopping_cart' ? '🧾' : '💵'}</Text>
+                    </View>
+                    <Text className="text-muted text-xs text-center mb-1">{item.label}</Text>
+                    <Text className="text-foreground font-bold text-2xl">{item.value}</Text>
+                  </CardContent>
+                </Card>
               )}
             />
           )}
         </View>
 
+        {/* Quick Actions */}
         <View className="px-6 py-4 gap-3">
-          <Text className="text-lg font-bold text-foreground">Quick Actions</Text>
-          <View className="gap-2">
-            <TouchableOpacity
+          <Text className="text-lg font-bold text-foreground px-1">Quick Actions</Text>
+          <View className="gap-3">
+            <PressableCard
               onPress={() => router.push('/staff-sales')}
-              className="bg-primary rounded-lg py-3 items-center"
+              className="bg-gradient-to-r from-cyan-600 to-cyan-500 border-transparent"
             >
-              <Text className="text-background font-semibold">Record Sale</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push('/staff-products')}
-              className="bg-surface border border-border rounded-lg py-3 items-center"
-            >
-              <Text className="text-foreground font-semibold">Manage Products</Text>
-            </TouchableOpacity>
+              <CardContent className="py-4 items-center">
+                <Text className="text-background font-semibold text-lg">Record New Sale</Text>
+              </CardContent>
+            </PressableCard>
+            <PressableCard onPress={() => router.push('/staff-products')}>
+              <CardContent className="py-4 items-center">
+                <Text className="text-foreground font-semibold text-lg">Manage Products</Text>
+              </CardContent>
+            </PressableCard>
           </View>
         </View>
 
-        <View className="px-6 py-6 gap-3">
-          <View className="flex-row justify-between items-center">
+        {/* Recent Sales */}
+        <View className="px-6 py-4 gap-3">
+          <View className="flex-row justify-between items-center px-1">
             <Text className="text-lg font-bold text-foreground">Recent Sales</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/staff-sales-history')}>
               <Text className="text-primary font-semibold text-sm">View all</Text>
             </TouchableOpacity>
           </View>
 
           {loading ? (
-            <ActivityIndicator color="#0a7ea4" />
+            <View className="items-center justify-center py-8">
+              <ActivityIndicator size="large" color="var(--color-primary)" />
+            </View>
           ) : recentSalesList.length === 0 ? (
-            <Text className="text-muted">No sales recorded yet.</Text>
+            <Card className="p-6 items-center justify-center">
+              <Text className="text-muted text-center">No sales recorded yet</Text>
+            </Card>
           ) : (
-            <FlatList
-              data={recentSalesList}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              renderItem={({ item }) => {
+            <View className="gap-3">
+              {recentSalesList.map((item) => {
                 const date = item.createdAt && typeof item.createdAt.toDate === 'function'
                   ? item.createdAt.toDate()
                   : item.createdAt
                     ? new Date(item.createdAt as any)
                     : null;
                 return (
-                  <View className="bg-surface rounded-lg p-4 mb-2 flex-row justify-between items-center">
-                    <View className="flex-1">
-                      <Text className="text-foreground font-semibold">{item.staffName || item.id}</Text>
-                      <Text className="text-muted text-xs mt-1">Items: {item.items.length}</Text>
-                    </View>
-                    <View className="items-end">
-                      <Text className="text-primary font-bold">${item.totalAmount.toFixed(2)}</Text>
-                      <Text className="text-muted text-xs">
-                        {date ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
-                      </Text>
-                    </View>
-                  </View>
+                  <Card key={item.id} className="overflow-hidden">
+                    <CardContent className="py-4 flex-row justify-between items-center">
+                      <View className="flex-1">
+                        <Text className="text-foreground font-semibold text-base">{item.staffName || 'Sale'}</Text>
+                        <Text className="text-muted text-xs mt-1">Items: {item.items.length}</Text>
+                      </View>
+                      <View className="items-end">
+                        <Text className="text-primary font-bold text-lg">{item.totalAmount.toFixed(0)} ETB</Text>
+                        <Text className="text-muted text-xs">
+                          {date ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </Text>
+                      </View>
+                    </CardContent>
+                  </Card>
                 );
-              }}
-            />
+              })}
+            </View>
           )}
         </View>
       </ScrollView>

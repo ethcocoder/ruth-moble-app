@@ -1,5 +1,6 @@
 import { View, type ViewProps } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
+import { OfflineBanner } from "./offline-banner";
 
 import { cn } from "@/lib/utils";
 
@@ -56,6 +57,7 @@ export function ScreenContainer({
       )}
       {...props}
     >
+      <OfflineBanner />
       <SafeAreaView
         edges={edges}
         className={cn("flex-1", safeAreaClassName)}

@@ -1,10 +1,12 @@
 import {
   addDoc,
+  writeBatch,
   collection,
   doc,
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -60,6 +62,7 @@ export type SaleItem = {
   name: string;
   quantity: number;
   basePrice: number;
+  cost: number;
   salePrice: number;
   profit: number;
   promotionCode?: string;
@@ -193,11 +196,25 @@ export async function approveUser(uid: string): Promise<void> {
   await updateUserProfile(uid, {
     status: 'approved',
   });
+
+  await createNotification({
+    type: 'user_approved',
+    title: 'Account Approved',
+    message: 'Your account has been approved! You can now access the system.',
+    userId: uid,
+  });
 }
 
 export async function rejectUser(uid: string): Promise<void> {
   await updateUserProfile(uid, {
     status: 'rejected',
+  });
+
+  await createNotification({
+    type: 'user_rejected',
+    title: 'Account Rejected',
+    message: 'Your account has been rejected.',
+    userId: uid,
   });
 }
 
@@ -255,6 +272,18 @@ export async function getActiveProducts(): Promise<Product[]> {
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
 }
 
+export function listenToActiveProducts(onUpdate: (products: Product[]) => void): () => void {
+  const q = query(
+    collection(db, "products"),
+    where("active", "==", true),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(q, (snapshot) => {
+    const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
+    onUpdate(products);
+  });
+}
+
 export async function getProducts(): Promise<Product[]> {
   const q = query(
     collection(db, "products"),
@@ -274,6 +303,18 @@ export async function getPendingProducts(): Promise<Product[]> {
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
 }
 
+export function listenToPendingProducts(onUpdate: (products: Product[]) => void): () => void {
+  const q = query(
+    collection(db, "products"),
+    where("status", "==", "pending"),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(q, (snapshot) => {
+    const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
+    onUpdate(products);
+  });
+}
+
 export async function getProductsByCreator(uid: string): Promise<Product[]> {
   const q = query(
     collection(db, "products"),
@@ -284,9 +325,27 @@ export async function getProductsByCreator(uid: string): Promise<Product[]> {
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
 }
 
+export function listenToProductsByCreator(uid: string, onUpdate: (products: Product[]) => void): () => void {
+  const q = query(
+    collection(db, "products"),
+    where("createdBy", "==", uid),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(q, (snapshot) => {
+    const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
+    onUpdate(products);
+  });
+}
+
 export async function getTotalProductsCount(): Promise<number> {
   const snapshot = await getDocs(collection(db, "products"));
   return snapshot.size;
+}
+
+export function listenToTotalProductsCount(onUpdate: (count: number) => void): () => void {
+  return onSnapshot(collection(db, "products"), (snapshot) => {
+    onUpdate(snapshot.size);
+  });
 }
 
 export async function getTotalStockCount(): Promise<number> {
@@ -297,9 +356,45 @@ export async function getTotalStockCount(): Promise<number> {
   }, 0);
 }
 
+export function listenToTotalStockCount(onUpdate: (count: number) => void): () => void {
+  return onSnapshot(collection(db, "products"), (snapshot) => {
+    const total = snapshot.docs.reduce((sum, docSnap) => {
+      const data = docSnap.data() as { stock?: number };
+      return sum + (typeof data.stock === 'number' ? data.stock : 0);
+    }, 0);
+    onUpdate(total);
+  });
+}
+
+export async function getTotalItemsSold(): Promise<number> {
+  const snapshot = await getDocs(collection(db, "sales"));
+  return snapshot.docs.reduce((sum, docSnap) => {
+    const data = docSnap.data() as { items?: Array<{ quantity: number }> };
+    const itemsSum = (data.items || []).reduce((itemSum, item) => itemSum + (item.quantity || 0), 0);
+    return sum + itemsSum;
+  }, 0);
+}
+
+export function listenToTotalItemsSold(onUpdate: (count: number) => void): () => void {
+  return onSnapshot(collection(db, "sales"), (snapshot) => {
+    const total = snapshot.docs.reduce((sum, docSnap) => {
+      const data = docSnap.data() as { items?: Array<{ quantity: number }> };
+      const itemsSum = (data.items || []).reduce((itemSum, item) => itemSum + (item.quantity || 0), 0);
+      return sum + itemsSum;
+    }, 0);
+    onUpdate(total);
+  });
+}
+
 export async function getTotalSalesCount(): Promise<number> {
   const snapshot = await getDocs(collection(db, "sales"));
   return snapshot.size;
+}
+
+export function listenToTotalSalesCount(onUpdate: (count: number) => void): () => void {
+  return onSnapshot(collection(db, "sales"), (snapshot) => {
+    onUpdate(snapshot.size);
+  });
 }
 
 export async function getTotalProfit(): Promise<number> {
@@ -308,6 +403,26 @@ export async function getTotalProfit(): Promise<number> {
     const data = docSnap.data() as { totalProfit?: number };
     return sum + (typeof data.totalProfit === 'number' ? data.totalProfit : 0);
   }, 0);
+}
+
+export function listenToTotalProfit(onUpdate: (profit: number) => void): () => void {
+  return onSnapshot(collection(db, "sales"), (snapshot) => {
+    const total = snapshot.docs.reduce((sum, docSnap) => {
+      const data = docSnap.data() as { totalProfit?: number };
+      return sum + (typeof data.totalProfit === 'number' ? data.totalProfit : 0);
+    }, 0);
+    onUpdate(total);
+  });
+}
+
+export function listenToTotalRevenue(onUpdate: (revenue: number) => void): () => void {
+  return onSnapshot(collection(db, "sales"), (snapshot) => {
+    const total = snapshot.docs.reduce((sum, docSnap) => {
+      const data = docSnap.data() as { totalAmount?: number };
+      return sum + (typeof data.totalAmount === 'number' ? data.totalAmount : 0);
+    }, 0);
+    onUpdate(total);
+  });
 }
 
 export async function createProduct(
@@ -337,20 +452,49 @@ export async function updateProduct(productId: string, values: Partial<Omit<Prod
 
 export async function approveProduct(productId: string): Promise<void> {
   const ref = doc(db, "products", productId);
+  const productSnap = await getDoc(ref);
+  const productData = productSnap.data() as Product | undefined;
+  
   await updateDoc(ref, {
     status: "approved",
     active: true,
     updatedAt: serverTimestamp(),
   });
+
+  if (productData?.createdBy) {
+    await createNotification({
+      type: 'product_approved',
+      title: 'Product Approved',
+      message: `Your product "${productData.name}" has been approved.`,
+      userId: productData.createdBy,
+    });
+  }
 }
 
 export async function rejectProduct(productId: string): Promise<void> {
   const ref = doc(db, "products", productId);
+  const productSnap = await getDoc(ref);
+  const productData = productSnap.data() as Product | undefined;
+  
   await updateDoc(ref, {
     status: "rejected",
     active: false,
     updatedAt: serverTimestamp(),
   });
+
+  if (productData?.createdBy) {
+    await createNotification({
+      type: 'product_rejected',
+      title: 'Product Rejected',
+      message: `Your product "${productData.name}" has been rejected.`,
+      userId: productData.createdBy,
+    });
+  }
+}
+
+export async function deleteProduct(productId: string): Promise<void> {
+  const ref = doc(db, "products", productId);
+  await deleteDoc(ref);
 }
 
 export async function createSale(sale: Omit<SaleRecord, "id" | "createdAt">, customDate?: Date): Promise<string> {
@@ -358,7 +502,54 @@ export async function createSale(sale: Omit<SaleRecord, "id" | "createdAt">, cus
     ...sale,
     createdAt: customDate ? Timestamp.fromDate(customDate) : serverTimestamp(),
   });
+
+  // Update product stock for each item in the sale
+  for (const item of sale.items) {
+    const productRef = doc(db, "products", item.productId);
+    const productSnap = await getDoc(productRef);
+    if (productSnap.exists()) {
+      const product = productSnap.data() as Product;
+      await updateDoc(productRef, {
+        stock: product.stock - item.quantity,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
+
   return ref.id;
+}
+
+export async function updateSale(saleId: string, sale: Partial<Omit<SaleRecord, "id" | "createdAt">>): Promise<void> {
+  const ref = doc(db, "sales", saleId);
+  await updateDoc(ref, {
+    ...sale,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteSale(saleId: string): Promise<void> {
+  const ref = doc(db, "sales", saleId);
+  
+  // First get the sale to restore stock
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    const sale = snap.data() as SaleRecord;
+    // Restore stock for each item
+    for (const item of sale.items) {
+      const productRef = doc(db, "products", item.productId);
+      const productSnap = await getDoc(productRef);
+      if (productSnap.exists()) {
+        const product = productSnap.data() as Product;
+        await updateDoc(productRef, {
+          stock: product.stock + item.quantity,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+  }
+  
+  // Then delete the sale
+  await deleteDoc(ref);
 }
 
 export async function getSalesByStaff(staffId: string): Promise<SaleRecord[]> {
@@ -489,6 +680,27 @@ export async function getActiveEmployeesCount(): Promise<number> {
   return snapshot.size;
 }
 
+export function listenToEmployees(onUpdate: (employees: Employee[]) => void): () => void {
+  const q = query(collection(db, "employees"), orderBy("createdAt", "desc"));
+  return onSnapshot(q, (snapshot) => {
+    const employees = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Employee, "id">) }));
+    onUpdate(employees);
+  });
+}
+
+export function listenToTotalEmployeesCount(onUpdate: (count: number) => void): () => void {
+  return onSnapshot(collection(db, "employees"), (snapshot) => {
+    onUpdate(snapshot.size);
+  });
+}
+
+export function listenToActiveEmployeesCount(onUpdate: (count: number) => void): () => void {
+  const q = query(collection(db, "employees"), where("status", "==", "active"));
+  return onSnapshot(q, (snapshot) => {
+    onUpdate(snapshot.size);
+  });
+}
+
 // ==================== ORDERS ====================
 export async function createOrder(order: Omit<Order, "id" | "createdAt" | "updatedAt">): Promise<string> {
   const ref = await addDoc(collection(db, "orders"), {
@@ -571,4 +783,80 @@ export async function getStaffReports(staffId?: string): Promise<StaffReport[]> 
   }
   const snapshot = await getDocs(q);
   return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<StaffReport, "id">) }));
+}
+
+// ==================== NOTIFICATIONS ====================
+export type NotificationType =
+  | "user_signup"
+  | "product_created"
+  | "product_approved"
+  | "product_rejected"
+  | "daily_sales_recorded"
+  | "user_approved"
+  | "user_rejected";
+
+export type Notification = {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  userId?: string;
+  data?: Record<string, any>;
+  read: boolean;
+  createdAt: Timestamp | null;
+};
+
+export async function createNotification(
+  notification: Omit<Notification, "id" | "createdAt" | "read">,
+): Promise<string> {
+  const ref = await addDoc(collection(db, "notifications"), {
+    ...notification,
+    read: false,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getNotifications(userId?: string): Promise<Notification[]> {
+  let q = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
+  if (userId) {
+    q = query(q, where("userId", "==", userId));
+  }
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Notification, "id">) }));
+}
+
+export function listenToNotifications(
+  userId: string | null,
+  onUpdate: (notifications: Notification[]) => void,
+): () => void {
+  let q = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
+  if (userId) {
+    q = query(q, where("userId", "==", userId));
+  }
+  return onSnapshot(q, (snapshot) => {
+    const notifications = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Notification, "id">) }));
+    onUpdate(notifications);
+  });
+}
+
+export async function markNotificationAsRead(notificationId: string): Promise<void> {
+  const ref = doc(db, "notifications", notificationId);
+  await updateDoc(ref, {
+    read: true,
+  });
+}
+
+export async function markAllNotificationsAsRead(userId: string): Promise<void> {
+  const q = query(
+    collection(db, "notifications"),
+    where("userId", "==", userId),
+    where("read", "==", false),
+  );
+  const snapshot = await getDocs(q);
+  const batch = writeBatch(db);
+  snapshot.docs.forEach((docSnap) => {
+    batch.update(docSnap.ref, { read: true });
+  });
+  await batch.commit();
 }

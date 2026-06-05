@@ -4,10 +4,12 @@ import { ScreenContainer } from '@/components/screen-container';
 import { getSalesSummary } from '@/lib/_core/firestore';
 import { useAuthContext } from '@/lib/auth-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 export default function AdminReportsScreen() {
   const { userRole, userStatus, loading: authLoading } = useAuthContext();
   const router = useRouter();
+  const { t } = useTranslation();
   const [daily, setDaily] = useState({ totalAmount: 0, totalProfit: 0, saleCount: 0 });
   const [weekly, setWeekly] = useState({ totalAmount: 0, totalProfit: 0, saleCount: 0 });
   const [monthly, setMonthly] = useState({ totalAmount: 0, totalProfit: 0, saleCount: 0 });
@@ -59,8 +61,8 @@ export default function AdminReportsScreen() {
               <View key={section.title} className="bg-surface rounded-xl p-4">
                 <Text className="text-lg font-semibold text-foreground">{section.title}</Text>
                 <Text className="text-muted text-sm">Sales: {section.stats.saleCount}</Text>
-                <Text className="text-foreground font-semibold">Revenue: ${section.stats.totalAmount.toFixed(2)}</Text>
-                <Text className="text-foreground font-semibold">Profit: ${section.stats.totalProfit.toFixed(2)}</Text>
+                <Text className="text-foreground font-semibold">Revenue: {section.stats.totalAmount.toFixed(2)} ETB</Text>
+                <Text className="text-foreground font-semibold">Profit: {section.stats.totalProfit.toFixed(2)} ETB</Text>
               </View>
             ))}
           </View>

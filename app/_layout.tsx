@@ -5,7 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import {
@@ -15,10 +15,15 @@ import {
   initialWindowMetrics,
 } from "react-native-safe-area-context";
 import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
+import { I18nextProvider } from "react-i18next";
+import i18n from "@/lib/i18n";
 
 import { trpc, createTRPCClient } from "@/lib/trpc";
 import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 import { AuthProvider } from "@/lib/auth-context";
+import { NotificationProvider } from "@/lib/notification-context";
+import { NetworkProvider } from "@/lib/network-context";
+import { OfflineBanner } from "@/components/offline-banner";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -80,25 +85,34 @@ export default function RootLayout() {
   }, [initialInsets, initialFrame]);
 
   const content = (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <trpc.Provider client={trpcClient} queryClient={queryClient}>
-          <QueryClientProvider client={queryClient}>
-          {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
-          {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
-          {/* in order for ios apps tab switching to work properly, use presentation: "fullScreenModal" for login page, whenever you decide to use presentation: "modal*/}
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="auth" />
-            <Stack.Screen name="debug" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="oauth/callback" />
-          </Stack>
-          <StatusBar style="auto" />
-          </QueryClientProvider>
-        </trpc.Provider>
-      </AuthProvider>
-    </GestureHandlerRootView>
+    <NetworkProvider>
+      <I18nextProvider i18n={i18n}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <View className="flex-1">
+            <OfflineBanner />
+            <AuthProvider>
+              <NotificationProvider>
+                <trpc.Provider client={trpcClient} queryClient={queryClient}>
+                  <QueryClientProvider client={queryClient}>
+                  {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
+                  {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
+                  {/* in order for ios apps tab switching to work properly, use presentation: "fullScreenModal" for login page, whenever you decide to use presentation: "modal*/}
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="auth" />
+                    <Stack.Screen name="debug" />
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="oauth/callback" />
+                  </Stack>
+                  <StatusBar style="auto" />
+                  </QueryClientProvider>
+                </trpc.Provider>
+              </NotificationProvider>
+            </AuthProvider>
+          </View>
+        </GestureHandlerRootView>
+      </I18nextProvider>
+    </NetworkProvider>
   );
 
   const shouldOverrideSafeArea = Platform.OS === "web";

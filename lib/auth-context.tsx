@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { auth } from './_core/firebase';
 import {
   createUserProfile,
@@ -12,6 +12,7 @@ import {
   LanguagePreference,
   hasAdminUser,
 } from './_core/firestore';
+import i18n from './i18n';
 
 interface AuthContextType {
   user: User | null;
@@ -21,6 +22,7 @@ interface AuthContextType {
   loading: boolean;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<UserProfile, 'displayName' | 'language' | 'theme'>>) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -67,6 +69,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
+  // Sync i18n language with profile language
+  useEffect(() => {
+    if (profile?.language) {
+      i18n.changeLanguage(profile.language);
+    }
+  }, [profile?.language]);
+
   const logout = useCallback(async () => {
     await signOut(auth);
     setUser(null);
@@ -83,6 +92,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user],
   );
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (!user || !user.email) {
+        throw new Error('User not found');
+      }
+      
+      // Re-authenticate the user first
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      
+      // Update password
+      await updatePassword(user, newPassword);
+    },
+    [user],
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -93,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         logout,
         updateProfile,
+        changePassword,
       }}
     >
       {children}

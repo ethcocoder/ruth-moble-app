@@ -12,22 +12,26 @@ import {
 } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import {
-  getEmployees,
   Employee,
   createEmployee,
   updateEmployee,
   deleteEmployee,
-  getActiveEmployeesCount,
-  getTotalEmployeesCount,
+  listenToEmployees,
+  listenToTotalEmployeesCount,
+  listenToActiveEmployeesCount,
 } from '@/lib/_core/firestore';
 import { HapticButton } from '@/components/haptic-button';
 import { format } from 'date-fns';
 import { useAuthContext } from '@/lib/auth-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { useNetworkValidation } from '@/lib/use-network-validation';
 
 export default function AdminEmployeesScreen() {
   const { userRole, userStatus, loading: authLoading } = useAuthContext();
   const router = useRouter();
+  const { t } = useTranslation();
+  const { validateNetwork } = useNetworkValidation();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,24 +49,6 @@ export default function AdminEmployeesScreen() {
   const [totalEmployees, setTotalEmployees] = useState(0);
   const [activeEmployees, setActiveEmployees] = useState(0);
 
-  const loadData = async () => {
-    setRefreshing(true);
-    Promise.all([
-      getEmployees(),
-      getTotalEmployeesCount(),
-      getActiveEmployeesCount(),
-    ]).then(([fetchedEmployees, total, active]) => {
-      setEmployees(fetchedEmployees);
-      setTotalEmployees(total);
-      setActiveEmployees(active);
-    }).catch((error) => {
-      console.error('Failed to load employees:', error);
-    }).finally(() => {
-      setLoading(false);
-      setRefreshing(false);
-    });
-  };
-
   useEffect(() => {
     if (authLoading) return;
 
@@ -76,10 +62,33 @@ export default function AdminEmployeesScreen() {
       return;
     }
 
-    loadData();
+    // Set up real-time listeners
+    const unsubscribeEmployees = listenToEmployees((data) => {
+      setEmployees(data);
+      setLoading(false);
+    });
+
+    const unsubscribeTotal = listenToTotalEmployeesCount((count) => {
+      setTotalEmployees(count);
+    });
+
+    const unsubscribeActive = listenToActiveEmployeesCount((count) => {
+      setActiveEmployees(count);
+    });
+
+    // Cleanup listeners on unmount
+    return () => {
+      unsubscribeEmployees();
+      unsubscribeTotal();
+      unsubscribeActive();
+    };
   }, [authLoading, router, userRole, userStatus]);
 
   const handleAddEmployee = async () => {
+    // Validate network before operation
+    const isOnline = await validateNetwork('Add Employee');
+    if (!isOnline) return;
+
     try {
       if (!newEmployee.name || !newEmployee.email || !newEmployee.role || !newEmployee.salary) {
         Alert.alert('Error', 'Please fill in all required fields');
@@ -100,17 +109,19 @@ export default function AdminEmployeesScreen() {
         joinedDate: format(new Date(), 'yyyy-MM-dd'),
       });
       setShowAddModal(false);
-      loadData();
     } catch (error) {
       console.error('Failed to add employee:', error);
     }
   };
 
   const handleToggleStatus = async (employee: Employee) => {
+    // Validate network before operation
+    const isOnline = await validateNetwork('Update Employee Status');
+    if (!isOnline) return;
+
     const newStatus = employee.status === 'active' ? 'inactive' : 'active';
     try {
       await updateEmployee(employee.id, { status: newStatus });
-      loadData();
     } catch (error) {
       console.error('Failed to update employee:', error);
     }
@@ -126,9 +137,12 @@ export default function AdminEmployeesScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
+            // Validate network before operation
+            const isOnline = await validateNetwork('Delete Employee');
+            if (!isOnline) return;
+
             try {
               await deleteEmployee(employeeId);
-              loadData();
             } catch (error) {
               console.error('Failed to delete employee:', error);
             }
@@ -154,9 +168,6 @@ export default function AdminEmployeesScreen() {
       <ScrollView
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={loadData} />
-        }
       >
         {/* Header */}
         <View className="px-6 py-6 gap-2 bg-primary/10">
@@ -254,61 +265,127 @@ export default function AdminEmployeesScreen() {
             </View>
           )}
 
-          {/* Employees List */}
+          {/* Employees Table */}
           {employees.length === 0 ? (
             <View className="items-center py-10">
               <Text className="text-muted">No employees yet.</Text>
             </View>
           ) : (
-            <View className="gap-3">
-              {employees.map((employee) => (
-                <View key={employee.id} className="bg-surface rounded-lg p-4 gap-3">
-                  <View className="flex-row justify-between items-start">
-                    <View>
-                      <Text className="text-foreground font-semibold">{employee.name}</Text>
-                      <Text className="text-muted text-sm">
-                        {employee.role}
-                        {employee.department ? ` • ${employee.department}` : ''}
-                      </Text>
+            <View className="bg-surface rounded-lg overflow-hidden">
+              {/* Table Container - Horizontally Scrollable */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={true}
+                className="w-full"
+              >
+                <View className="min-w-[800px]">
+                  {/* Table Header */}
+                  <View className="bg-primary/20 flex-row border-b border-border">
+                    <View className="w-[120px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Name</Text>
                     </View>
-                    <Text className="text-primary font-bold text-lg">
-                      ${employee.salary.toLocaleString()}
-                    </Text>
-                  </View>
-                  <View className="flex-row justify-between items-center">
-                    <View className={
-                      "px-3 py-1 rounded-full " +
-                      (employee.status === 'active' ? "bg-green-100" : "bg-red-100")
-                    }>
-                      <Text className={
-                        "text-xs font-semibold " +
-                        (employee.status === 'active' ? "text-green-800" : "text-red-800")
-                      }>
-                        {employee.status}
-                      </Text>
+                    <View className="w-[180px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Email</Text>
                     </View>
-                    <Text className="text-muted text-sm">
-                      Joined: {employee.joinedDate}
-                    </Text>
+                    <View className="w-[100px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Role</Text>
+                    </View>
+                    <View className="w-[100px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Department</Text>
+                    </View>
+                    <View className="w-[100px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Phone</Text>
+                    </View>
+                    <View className="w-[100px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Salary</Text>
+                    </View>
+                    <View className="w-[100px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Status</Text>
+                    </View>
+                    <View className="w-[100px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Joined</Text>
+                    </View>
+                    <View className="w-[200px] p-3">
+                      <Text className="text-foreground font-bold text-sm">Actions</Text>
+                    </View>
                   </View>
-                  <View className="flex-row gap-2">
-                    <TouchableOpacity
-                      onPress={() => handleToggleStatus(employee)}
-                      className="flex-1 bg-surface border border-border rounded-lg py-2 items-center"
+
+                  {/* Table Rows */}
+                  {employees.map((employee, index) => (
+                    <View
+                      key={employee.id}
+                      className={`flex-row border-b border-border ${
+                        index % 2 === 0 ? 'bg-surface' : 'bg-background'
+                      }`}
                     >
-                      <Text className="text-foreground text-sm font-semibold">
-                        {employee.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleDeleteEmployee(employee.id)}
-                      className="flex-1 bg-red-500 rounded-lg py-2 items-center"
-                    >
-                      <Text className="text-white text-sm font-semibold">Delete</Text>
-                    </TouchableOpacity>
-                  </View>
+                      <View className="w-[120px] p-3 justify-center">
+                        <Text className="text-foreground font-medium text-sm">
+                          {employee.name}
+                        </Text>
+                      </View>
+                      <View className="w-[180px] p-3 justify-center">
+                        <Text className="text-muted text-sm">
+                          {employee.email}
+                        </Text>
+                      </View>
+                      <View className="w-[100px] p-3 justify-center">
+                        <Text className="text-foreground text-sm">
+                          {employee.role}
+                        </Text>
+                      </View>
+                      <View className="w-[100px] p-3 justify-center">
+                        <Text className="text-muted text-sm">
+                          {employee.department || '-'}
+                        </Text>
+                      </View>
+                      <View className="w-[100px] p-3 justify-center">
+                        <Text className="text-muted text-sm">
+                          {employee.phone || '-'}
+                        </Text>
+                      </View>
+                      <View className="w-[100px] p-3 justify-center">
+                        <Text className="text-primary font-bold text-sm">
+                          {employee.salary.toLocaleString()} ETB
+                        </Text>
+                      </View>
+                      <View className="w-[100px] p-3 justify-center">
+                        <View className={
+                          "px-3 py-1 rounded-full self-start " +
+                          (employee.status === 'active' ? "bg-green-100" : "bg-red-100")
+                        }>
+                          <Text className={
+                            "text-xs font-semibold " +
+                            (employee.status === 'active' ? "text-green-800" : "text-red-800")
+                          }>
+                            {employee.status}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="w-[100px] p-3 justify-center">
+                        <Text className="text-muted text-sm">
+                          {employee.joinedDate}
+                        </Text>
+                      </View>
+                      <View className="w-[200px] p-3 flex-row gap-2">
+                        <TouchableOpacity
+                          onPress={() => handleToggleStatus(employee)}
+                          className="flex-1 bg-blue-500 rounded-md py-2 items-center"
+                        >
+                          <Text className="text-white text-xs font-semibold">
+                            {employee.status === 'active' ? 'Deactivate' : 'Activate'}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteEmployee(employee.id)}
+                          className="flex-1 bg-red-500 rounded-md py-2 items-center"
+                        >
+                          <Text className="text-white text-xs font-semibold">Delete</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              ))}
+              </ScrollView>
             </View>
           )}
         </View>

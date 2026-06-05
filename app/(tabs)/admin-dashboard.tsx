@@ -3,6 +3,7 @@ import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from 'rea
 import { ScreenContainer } from '@/components/screen-container';
 import { useAuthContext } from '@/lib/auth-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import {
   getPendingUsers,
   getTotalRevenue,
@@ -15,6 +16,7 @@ import {
 export default function AdminDashboardScreen() {
   const { userRole, userStatus, loading: authLoading } = useAuthContext();
   const router = useRouter();
+  const { t } = useTranslation();
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState<number | null>(null);
   const [approvedEmployees, setApprovedEmployees] = useState<number | null>(null);
@@ -71,7 +73,7 @@ export default function AdminDashboardScreen() {
 
   const topStats = [
     {
-      title: 'Total Users',
+      title: t('employees.totalEmployees'),
       value: totalUsers === null ? '--' : `${totalUsers}`,
       accent: 'text-cyan-300',
     },
@@ -81,12 +83,12 @@ export default function AdminDashboardScreen() {
       accent: 'text-amber-300',
     },
     {
-      title: 'Revenue',
-      value: totalRevenue === null ? '--' : `$${totalRevenue.toFixed(2)}`,
+      title: t('finance.revenue'),
+      value: totalRevenue === null ? '--' : `${totalRevenue.toFixed(0)} ETB`,
       accent: 'text-emerald-300',
     },
     {
-      title: 'Employees',
+      title: t('tab.employees'),
       value: approvedEmployees === null ? '--' : `${approvedEmployees}`,
       accent: 'text-violet-300',
     },
@@ -160,7 +162,7 @@ export default function AdminDashboardScreen() {
               <View className="space-y-3">
                 <View className="rounded-3xl border border-border bg-background/80 p-4 flex-row justify-between items-center">
                   <Text className="text-sm text-muted">Revenue</Text>
-                  <Text className="text-foreground font-semibold">{totalRevenue === null ? '--' : `$${totalRevenue.toFixed(2)}`}</Text>
+                  <Text className="text-foreground font-semibold">{totalRevenue === null ? '--' : `${totalRevenue.toFixed(0)} ETB`}</Text>
                 </View>
                 <View className="rounded-3xl border border-border bg-background/80 p-4 flex-row justify-between items-center">
                   <Text className="text-sm text-muted">Approved Staff</Text>
