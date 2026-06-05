@@ -50,15 +50,27 @@ export default function TabLayout() {
           tabBarButton: renderHiddenTab,
           tabBarItemStyle: { display: 'none' },
           tabBarLabel: '',
+          tabBarIcon: () => null,
         };
 
         const tabIcons: Record<string, (props: { color: string }) => JSX.Element> = {
           'staff-dashboard': ({ color }) => <IconSymbol size={24} name="house.fill" color={color} />,
-          'staff-products': ({ color }) => <IconSymbol size={24} name="inventory_2" color={color} />,
-          'staff-sales': ({ color }) => <IconSymbol size={24} name="shopping_cart" color={color} />,
-          'admin-dashboard': ({ color }) => <IconSymbol size={24} name="bar_chart" color={color} />,
-          profile: ({ color }) => <IconSymbol size={24} name="person" color={color} />,
+          'staff-products': ({ color }) => <IconSymbol size={24} name="cube.box.fill" color={color} />,
+          'staff-sales': ({ color }) => <IconSymbol size={24} name="cart.fill" color={color} />,
+          'staff-sales-history': ({ color }) => <IconSymbol size={24} name="clock.fill" color={color} />,
+          'admin-dashboard': ({ color }) => <IconSymbol size={24} name="chart.bar.fill" color={color} />,
+          'admin-users': ({ color }) => <IconSymbol size={24} name="person.fill" color={color} />,
+          'admin-products': ({ color }) => <IconSymbol size={24} name="cube.box.fill" color={color} />,
+          'admin-daily-sales': ({ color }) => <IconSymbol size={24} name="cart.fill" color={color} />,
+          'admin-employees': ({ color }) => <IconSymbol size={24} name="person.fill" color={color} />,
+          'admin-finance': ({ color }) => <IconSymbol size={24} name="chart.bar.fill" color={color} />,
+          'admin-reports': ({ color }) => <IconSymbol size={24} name="chart.bar.fill" color={color} />,
+          profile: ({ color }) => <IconSymbol size={24} name="person.fill" color={color} />,
         };
+
+        if (['index', 'home', 'products'].includes(route.name)) {
+          return hiddenOptions;
+        }
 
         if (route.name === 'profile') {
           return userStatus === 'approved'
@@ -71,18 +83,31 @@ export default function TabLayout() {
             : hiddenOptions;
         }
 
-        if (route.name === 'admin-dashboard') {
+        if (['admin-dashboard', 'admin-users', 'admin-products', 'admin-daily-sales', 'admin-employees', 'admin-finance', 'admin-reports'].includes(route.name)) {
           return isAdmin
             ? {
                 ...commonOptions,
-                title: 'Analytics',
-                tabBarIcon: tabIcons['admin-dashboard'],
+                title:
+                  route.name === 'admin-dashboard'
+                    ? 'Analytics'
+                    : route.name === 'admin-users'
+                    ? 'Users'
+                    : route.name === 'admin-products'
+                    ? 'Products'
+                    : route.name === 'admin-daily-sales'
+                    ? 'Sales'
+                    : route.name === 'admin-employees'
+                    ? 'Employees'
+                    : route.name === 'admin-finance'
+                    ? 'Finance'
+                    : 'Reports',
+                tabBarIcon: tabIcons[route.name],
                 tabBarButton: renderHapticTab,
               }
             : hiddenOptions;
         }
 
-        if (['staff-dashboard', 'staff-products', 'staff-sales'].includes(route.name)) {
+        if (['staff-dashboard', 'staff-products', 'staff-sales', 'staff-sales-history'].includes(route.name)) {
           return isStaff
             ? {
                 ...commonOptions,
@@ -91,7 +116,9 @@ export default function TabLayout() {
                     ? 'Dashboard'
                     : route.name === 'staff-products'
                     ? 'Products'
-                    : 'Sales',
+                    : route.name === 'staff-sales'
+                    ? 'Sales'
+                    : 'History',
                 tabBarIcon: tabIcons[route.name],
                 tabBarButton: renderHapticTab,
               }
@@ -101,15 +128,16 @@ export default function TabLayout() {
         return hiddenOptions;
       }}
     >
-      <Tabs.Screen name="index" />
-      <Tabs.Screen name="home" />
-      <Tabs.Screen name="products" />
       <Tabs.Screen name="staff-dashboard" />
       <Tabs.Screen name="staff-products" />
       <Tabs.Screen name="staff-sales" />
+      <Tabs.Screen name="staff-sales-history" />
       <Tabs.Screen name="admin-dashboard" />
       <Tabs.Screen name="admin-users" />
       <Tabs.Screen name="admin-products" />
+      <Tabs.Screen name="admin-daily-sales" />
+      <Tabs.Screen name="admin-employees" />
+      <Tabs.Screen name="admin-finance" />
       <Tabs.Screen name="admin-reports" />
       <Tabs.Screen name="profile" />
     </Tabs>

@@ -23,7 +23,7 @@
 - [x] Staff product CRUD with admin approval required before activation
 - [ ] Product submission and editing supported, locked while not active
 - [x] Daily sales log screen for recording sales transactions with actual sale price
-- [ ] Sales history screen with filters by date and product
+- [x] Sales history screen with filters by date and product
 - [x] Sales price override support by customer or promotion
 - [ ] Stock adjustment and low-stock indicators
 - [ ] Export daily sales / reports to PDF or Excel
@@ -33,38 +33,35 @@
 ## Admin ERP Features
 - [x] Admin dashboard with system KPIs
 - [x] User management screen for approve/reject staff
-- [ ] Product management CRUD with inventory, pricing, featured flag, and approval workflow
+- [x] Product management CRUD with inventory, pricing, featured flag, and approval workflow
 - [ ] Monthly promotions/offers management screen
 - [ ] Staff pricing and employee discount management
 - [ ] Product-level variable pricing and marketing price overrides
-- [ ] Order management screen and status updates
+- [x] Order management screen and status updates
 - [x] Sales analytics and revenue reporting with daily/weekly/monthly rollups
 - [ ] Admin report generation with PDF and Excel export
-- [ ] Finance dashboard for revenue, profit, and expense summaries
-- [ ] HR management for employee records and statuses
-- [ ] CMS editing for hero, features, testimonials, and content blocks
-- [ ] Admin profile management and account settings
+- [x] Finance dashboard for revenue, profit, and expense summaries
+- [x] HR management for employee records and statuses
+- [x] Admin profile management and account settings
 - [x] System language preference support (English / Amharic)
 - [x] User theme preference support (dark / light mode)
 
 ## Backend Data Model
 - [x] `users` collection/table: email, role, status, approvedBy, createdAt
 - [x] `products` collection/table: name, category, stock, basePrice, status
-- [ ] `orders` collection/table: order items, totalAmount, status, customer info
+- [x] `orders` collection/table: order items, totalAmount, status, customer info
 - [x] `order_items` or `sales_items` structure: productId, salePrice, quantity, profit, customerPriceOverride, promotionCode
-- [ ] `daily_sales` collection/table: saleDate, items, totalAmount, profit, salesCount
+- [x] `daily_sales` collection/table: saleDate, items, totalAmount, profit, salesCount
 - [ ] `reports` collection/table: daily, weekly, monthly aggregates with revenue and profit
-- [ ] `employees` collection/table: name, role, salary, status, department
-- [ ] `cms_content` collection/table: key, content, updatedAt
-- [ ] `testimonials` / `features` collections for admin CMS content
-- [ ] `staff_reports` collection/table for staff action audit logs
+- [x] `employees` collection/table: name, role, salary, status, department
+- [x] `staff_reports` collection/table for staff action audit logs
 
 ## Polish & Delivery
 - [x] App branding (logo, colors, name)
 - [x] Loading states and error handling
 - [x] Empty states for lists and dashboards
-- [ ] Pull-to-refresh functionality for product and sales lists
-- [ ] Haptic feedback on interactions
+- [x] Pull-to-refresh functionality for product and sales lists (staff dashboard and staff sales screens)
+- [x] Haptic feedback on interactions (HapticButton component, HapticTab already present)
 - [x] Dark mode support
 - [x] Responsive layout validation for iOS
 - [ ] Package as ZIP for delivery

@@ -4,7 +4,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, signInWithGoogle } from '@/lib/_core/firebase';
 import { ScreenContainer } from '@/components/screen-container';
 import { useRouter } from 'expo-router';
-import { createUserProfile, hasAdminUser, UserRole, UserStatus } from '@/lib/_core/firestore';
+import { createUserProfile, getUserProfile, hasAdminUser, UserRole, UserStatus } from '@/lib/_core/firestore';
 import { FontAwesome } from '@expo/vector-icons';
 
 export default function RegisterScreen() {
@@ -59,8 +59,38 @@ export default function RegisterScreen() {
     setError('');
 
     try {
-      await signInWithGoogle();
-      router.replace('/(tabs)');
+      const userCredential = await signInWithGoogle();
+      const user = userCredential.user;
+      if (!user) {
+        throw new Error('Google sign-in failed');
+      }
+
+      const existingProfile = await getUserProfile(user.uid);
+      if (existingProfile) {
+        if (existingProfile.status === 'pending') {
+          router.replace('/auth/pending');
+          return;
+        }
+
+        router.replace(existingProfile.role === 'admin' ? '/admin-dashboard' : '/staff-dashboard');
+        return;
+      }
+
+      const isAdmin = !(await hasAdminUser());
+      const role: UserRole = isAdmin ? 'admin' : 'staff';
+      const status: UserStatus = isAdmin ? 'approved' : 'pending';
+
+      await createUserProfile({
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: user.displayName ?? '',
+        role,
+        status,
+        language: 'en',
+        theme: 'light',
+      });
+
+      router.replace(isAdmin ? '/admin-dashboard' : '/auth/pending');
     } catch (err: any) {
       setError(err.message || 'Google sign-in failed');
     } finally {

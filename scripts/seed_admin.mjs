@@ -63,7 +63,12 @@ async function main() {
     };
 
     await db.collection('users').doc(userRecord.uid).set(userDoc, { merge: true });
-    console.log('Seeded users collection with admin profile');
+    await db.collection('meta').doc('adminBootstrap').set({
+      adminExists: true,
+      createdBy: userRecord.uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    console.log('Seeded users collection with admin profile and bootstrap metadata');
 
     console.log('Admin seeding complete. You can now sign in with', email);
     process.exit(0);

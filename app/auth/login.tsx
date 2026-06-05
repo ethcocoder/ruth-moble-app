@@ -52,8 +52,28 @@ export default function LoginScreen() {
     setError('');
 
     try {
-      await signInWithGoogle();
-      router.replace('/(tabs)');
+      const userCredential = await signInWithGoogle();
+      const user = userCredential.user;
+      if (!user) {
+        throw new Error('Google sign-in failed');
+      }
+
+      const profile = await getUserProfile(user.uid);
+      if (!profile) {
+        throw new Error('No ERP profile found for this Google account. Use the same sign-in method used during registration.');
+      }
+
+      if (profile.status === 'pending') {
+        router.replace('/auth/pending');
+        return;
+      }
+
+      if (profile.role === 'admin') {
+        router.replace('/admin-dashboard');
+        return;
+      }
+
+      router.replace('/staff-dashboard');
     } catch (err: any) {
       setError(err.message || 'Google sign-in failed');
     } finally {

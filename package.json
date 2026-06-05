@@ -21,6 +21,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/datetimepicker": "^9.1.0",
     "@react-navigation/bottom-tabs": "^7.8.12",
     "@react-navigation/elements": "^2.9.2",
     "@react-navigation/native": "^7.1.25",
@@ -31,6 +32,7 @@
     "axios": "^1.13.2",
     "clsx": "^2.1.1",
     "cookie": "^1.1.1",
+    "date-fns": "^4.4.0",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.44.7",
     "expo": "~54.0.29",
@@ -53,6 +55,7 @@
     "expo-web-browser": "~15.0.10",
     "express": "^4.22.1",
     "firebase": "^12.14.0",
+    "firebase-admin": "^13.10.0",
     "jose": "6.1.0",
     "mysql2": "^3.16.0",
     "nativewind": "^4.2.1",

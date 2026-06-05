@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, Text, View, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { ScrollView, Text, View, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { ScreenContainer } from '@/components/screen-container';
 import { useAuthContext } from '@/lib/auth-context';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,7 @@ export default function StaffDashboardScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [recentSales, setRecentSales] = useState<SaleRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -26,24 +27,30 @@ export default function StaffDashboardScreen() {
     }
   }, [authLoading, router, userRole, userStatus]);
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      if (!profile) return;
-      setLoading(true);
-      try {
-        const [activeProducts, sales] = await Promise.all([
-          getActiveProducts(),
-          getSalesByStaff(profile.uid),
-        ]);
-        setProducts(activeProducts);
-        setRecentSales(sales);
-      } catch (err) {
-        console.warn('Failed to load staff dashboard', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadDashboard = async () => {
+    if (!profile) return;
+    setLoading(true);
+    try {
+      const [activeProducts, sales] = await Promise.all([
+        getActiveProducts(),
+        getSalesByStaff(profile.uid),
+      ]);
+      setProducts(activeProducts);
+      setRecentSales(sales);
+    } catch (err) {
+      console.warn('Failed to load staff dashboard', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadDashboard();
+    setRefreshing(false);
+  };
+
+  useEffect(() => {
     loadDashboard();
   }, [profile?.uid]);
 
@@ -83,7 +90,11 @@ export default function StaffDashboardScreen() {
 
   return (
     <ScreenContainer className="bg-background">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <View className="px-6 py-6 gap-2 bg-primary/10">
           <Text className="text-2xl font-bold text-foreground">Staff Dashboard</Text>
           <Text className="text-muted">Live sales and inventory insights.</Text>

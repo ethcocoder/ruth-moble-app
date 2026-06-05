@@ -12,6 +12,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -19,6 +20,8 @@ export type UserRole = "staff" | "admin";
 export type UserStatus = "pending" | "approved" | "rejected";
 export type LanguagePreference = "en" | "am";
 export type ThemePreference = "light" | "dark";
+export type OrderStatus = "pending" | "completed" | "cancelled";
+export type PaymentStatus = "unpaid" | "paid" | "partial";
 
 export type UserProfile = {
   uid: string;
@@ -71,6 +74,69 @@ export type SaleRecord = {
   totalProfit: number;
   items: SaleItem[];
   note?: string;
+};
+
+export type EmployeeStatus = "active" | "inactive";
+
+export type Employee = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  salary: number;
+  status: EmployeeStatus;
+  joinedDate: string;
+  phone?: string;
+  department?: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+};
+
+export type OrderItem = {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+};
+
+export type Order = {
+  id: string;
+  orderNumber: string;
+  userId?: string;
+  customerName: string;
+  customerEmail: string;
+  items: OrderItem[];
+  totalAmount: number;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  orderDate: Timestamp | null;
+  completedDate?: Timestamp | null;
+  notes?: string;
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+};
+
+export type DailySales = {
+  id: string;
+  saleDate: string;
+  totalAmount: number;
+  totalCost: number;
+  totalProfit: number;
+  items: SaleItem[];
+  createdAt: Timestamp | null;
+};
+
+export type StaffReportAction = "create_product" | "update_product" | "delete_product" | "record_sale" | "other";
+
+export type StaffReport = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  action: StaffReportAction;
+  details: Record<string, any>;
+  timestamp: Timestamp | null;
+  type: "automatic" | "manual";
 };
 
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
@@ -142,17 +208,40 @@ export async function createUserProfile(profile: Omit<UserProfile, "createdAt" |
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  if (profile.role === 'admin') {
+    const bootstrapRef = doc(db, "meta", "adminBootstrap");
+    await setDoc(
+      bootstrapRef,
+      {
+        adminExists: true,
+        createdBy: profile.uid,
+        createdAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  }
 }
 
 export async function hasAdminUser(): Promise<boolean> {
-  const q = query(collection(db, "users"), where("role", "==", "admin"), limit(1));
+  const bootstrapRef = doc(db, "meta", "adminBootstrap");
 
   try {
+    const snap = await getDoc(bootstrapRef);
+    if (snap.exists() && (snap.data() as { adminExists?: boolean }).adminExists === true) {
+      return true;
+    }
+  } catch (error) {
+    console.warn('hasAdminUser bootstrap read failed:', error);
+  }
+
+  try {
+    const q = query(collection(db, "users"), where("role", "==", "admin"), limit(1));
     const snapshot = await getDocs(q);
     return !snapshot.empty;
   } catch (error) {
-    console.warn('hasAdminUser failed:', error);
-    return true; // fallback to staff if permissions prevent the query
+    console.warn('hasAdminUser fallback query failed:', error);
+    return false;
   }
 }
 
@@ -160,6 +249,15 @@ export async function getActiveProducts(): Promise<Product[]> {
   const q = query(
     collection(db, "products"),
     where("active", "==", true),
+    orderBy("createdAt", "desc"),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
+}
+
+export async function getProducts(): Promise<Product[]> {
+  const q = query(
+    collection(db, "products"),
     orderBy("createdAt", "desc"),
   );
   const snapshot = await getDocs(q);
@@ -212,13 +310,16 @@ export async function getTotalProfit(): Promise<number> {
   }, 0);
 }
 
-export async function createProduct(product: Omit<Product, "id" | "createdAt" | "updatedAt" | "status" | "active">): Promise<string> {
+export async function createProduct(
+  product: Omit<Product, "id" | "createdAt" | "updatedAt" | "status" | "active">,
+  approveImmediately = false,
+): Promise<string> {
   const ref = await addDoc(collection(db, "products"), {
     ...product,
     cost: product.cost ?? 0,
     description: product.description ?? '',
-    status: "pending",
-    active: false,
+    status: approveImmediately ? 'approved' : 'pending',
+    active: approveImmediately,
     featured: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -252,10 +353,10 @@ export async function rejectProduct(productId: string): Promise<void> {
   });
 }
 
-export async function createSale(sale: Omit<SaleRecord, "id" | "createdAt">): Promise<string> {
+export async function createSale(sale: Omit<SaleRecord, "id" | "createdAt">, customDate?: Date): Promise<string> {
   const ref = await addDoc(collection(db, "sales"), {
     ...sale,
-    createdAt: serverTimestamp(),
+    createdAt: customDate ? Timestamp.fromDate(customDate) : serverTimestamp(),
   });
   return ref.id;
 }
@@ -264,6 +365,38 @@ export async function getSalesByStaff(staffId: string): Promise<SaleRecord[]> {
   const q = query(
     collection(db, "sales"),
     where("staffId", "==", staffId),
+    orderBy("createdAt", "desc"),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<SaleRecord, "id">) }));
+}
+
+export async function getSalesByStaffAndDate(staffId: string, startDate: Date, endDate: Date): Promise<SaleRecord[]> {
+  const q = query(
+    collection(db, "sales"),
+    where("staffId", "==", staffId),
+    where("createdAt", ">=", Timestamp.fromDate(startDate)),
+    where("createdAt", "<=", Timestamp.fromDate(endDate)),
+    orderBy("createdAt", "desc"),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<SaleRecord, "id">) }));
+}
+
+export async function getAllSales(): Promise<SaleRecord[]> {
+  const q = query(
+    collection(db, "sales"),
+    orderBy("createdAt", "desc"),
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<SaleRecord, "id">) }));
+}
+
+export async function getAllSalesByDate(startDate: Date, endDate: Date): Promise<SaleRecord[]> {
+  const q = query(
+    collection(db, "sales"),
+    where("createdAt", ">=", Timestamp.fromDate(startDate)),
+    where("createdAt", "<=", Timestamp.fromDate(endDate)),
     orderBy("createdAt", "desc"),
   );
   const snapshot = await getDocs(q);
@@ -306,4 +439,136 @@ export async function getSalesSummary(period: "day" | "week" | "month", staffId?
     }),
     { totalAmount: 0, totalProfit: 0, saleCount: 0 },
   );
+}
+
+// ==================== EMPLOYEES ====================
+export async function createEmployee(employee: Omit<Employee, "id" | "createdAt" | "updatedAt">): Promise<string> {
+  const ref = await addDoc(collection(db, "employees"), {
+    ...employee,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getEmployees(): Promise<Employee[]> {
+  const q = query(collection(db, "employees"), orderBy("createdAt", "desc"));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Employee, "id">) }));
+}
+
+export async function getEmployee(id: string): Promise<Employee | null> {
+  const ref = doc(db, "employees", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  const data = snap.data() as Omit<Employee, "id">;
+  return { id: snap.id, ...data };
+}
+
+export async function updateEmployee(id: string, values: Partial<Omit<Employee, "id" | "createdAt">>): Promise<void> {
+  const ref = doc(db, "employees", id);
+  await updateDoc(ref, {
+    ...values,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteEmployee(id: string): Promise<void> {
+  const ref = doc(db, "employees", id);
+  await deleteDoc(ref);
+}
+
+export async function getTotalEmployeesCount(): Promise<number> {
+  const snapshot = await getDocs(collection(db, "employees"));
+  return snapshot.size;
+}
+
+export async function getActiveEmployeesCount(): Promise<number> {
+  const q = query(collection(db, "employees"), where("status", "==", "active"));
+  const snapshot = await getDocs(q);
+  return snapshot.size;
+}
+
+// ==================== ORDERS ====================
+export async function createOrder(order: Omit<Order, "id" | "createdAt" | "updatedAt">): Promise<string> {
+  const ref = await addDoc(collection(db, "orders"), {
+    ...order,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getOrders(): Promise<Order[]> {
+  const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Order, "id">) }));
+}
+
+export async function getOrder(id: string): Promise<Order | null> {
+  const ref = doc(db, "orders", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  const data = snap.data() as Omit<Order, "id">;
+  return { id: snap.id, ...data };
+}
+
+export async function updateOrder(id: string, values: Partial<Omit<Order, "id" | "createdAt">>): Promise<void> {
+  const ref = doc(db, "orders", id);
+  await updateDoc(ref, {
+    ...values,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deleteOrder(id: string): Promise<void> {
+  const ref = doc(db, "orders", id);
+  await deleteDoc(ref);
+}
+
+export async function getTotalOrdersCount(): Promise<number> {
+  const snapshot = await getDocs(collection(db, "orders"));
+  return snapshot.size;
+}
+
+// ==================== DAILY SALES ====================
+export async function createDailySales(dailySales: Omit<DailySales, "id" | "createdAt">): Promise<string> {
+  const ref = await addDoc(collection(db, "dailySales"), {
+    ...dailySales,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getDailySales(date: string): Promise<DailySales | null> {
+  const q = query(collection(db, "dailySales"), where("saleDate", "==", date));
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+  const docSnap = snapshot.docs[0];
+  const data = docSnap.data() as Omit<DailySales, "id">;
+  return { id: docSnap.id, ...data };
+}
+
+export async function getAllDailySales(): Promise<DailySales[]> {
+  const q = query(collection(db, "dailySales"), orderBy("saleDate", "desc"));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<DailySales, "id">) }));
+}
+
+// ==================== STAFF REPORTS ====================
+export async function createStaffReport(report: Omit<StaffReport, "id" | "timestamp">): Promise<string> {
+  const ref = await addDoc(collection(db, "staffReports"), {
+    ...report,
+    timestamp: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getStaffReports(staffId?: string): Promise<StaffReport[]> {
+  let q = query(collection(db, "staffReports"), orderBy("timestamp", "desc"));
+  if (staffId) {
+    q = query(q, where("staffId", "==", staffId));
+  }
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<StaffReport, "id">) }));
 }

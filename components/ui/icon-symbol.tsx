@@ -15,13 +15,14 @@ type IconSymbolName = keyof typeof MAPPING;
  */
 const MAPPING = {
   "house.fill": "home",
-  "cube.box.fill": "inventory_2",
+  "cube.box.fill": "storage",
   "cart.fill": "shopping_cart",
   "chart.bar.fill": "bar_chart",
   "person.fill": "person",
+  "clock.fill": "schedule",
   "paperplane.fill": "send",
   "chevron.left.forwardslash.chevron.right": "code",
-  "chevron.right": "chevron-right",
+  "chevron.right": "chevron_right",
 } as IconMapping;
 
 /**
@@ -41,5 +42,7 @@ export function IconSymbol({
   style?: StyleProp<TextStyle>;
   weight?: SymbolWeight;
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+  // Fallback to 'help' icon if the name isn't mapped
+  const materialIconName = MAPPING[name] || "help";
+  return <MaterialIcons color={color} size={size} name={materialIconName} style={style} />;
 }
