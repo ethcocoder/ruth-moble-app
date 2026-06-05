@@ -35,25 +35,46 @@ export default function LoginScreen() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       const user = auth.currentUser;
-      console.log('User authenticated:', user);
+      console.log('✅ User authenticated:', user?.uid);
+      
       if (user) {
-        const profile = await getUserProfile(user.uid);
-        console.log('User profile:', profile);
-        if (!profile || profile.status === 'pending') {
-          console.log('Redirecting to pending (profile missing or pending)');
+        let profile = null;
+        try {
+          profile = await getUserProfile(user.uid);
+          console.log('✅ User profile fetched:', profile);
+        } catch (profileErr: any) {
+          console.error('❌ Error fetching user profile:', profileErr);
+          setError('Error loading user profile: ' + profileErr.message);
+          return;
+        }
+        
+        if (!profile) {
+          console.log('❌ No user profile found!');
+          setError('No user profile found. Please register first.');
+          return;
+        }
+        
+        if (profile.status === 'pending') {
+          console.log('🟡 User status is pending');
           router.replace('/auth/pending');
           return;
         }
 
-        console.log('User role:', profile.role);
+        console.log('🔍 User role:', profile.role);
         if (profile.role === 'admin') {
+          console.log('➡️ Redirecting to /admin-dashboard');
           router.replace('/admin-dashboard');
           return;
         }
+        
+        console.log('➡️ Redirecting to /staff-dashboard');
+      } else {
+        console.log('❌ No user after sign in!');
       }
 
       router.replace('/staff-dashboard');
     } catch (err: any) {
+      console.error('❌ Login error:', err);
       setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
