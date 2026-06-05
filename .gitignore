@@ -64,6 +64,8 @@ Thumbs.db
 # Firebase credentials (secrets)
 *firebase*.json
 *service-account*.json
+google-services.json
+GoogleService-Info.plist
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
