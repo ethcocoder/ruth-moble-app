@@ -278,10 +278,15 @@ export function listenToActiveProducts(onUpdate: (products: Product[]) => void):
     where("active", "==", true),
     orderBy("createdAt", "desc"),
   );
-  return onSnapshot(q, (snapshot) => {
-    const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
-    onUpdate(products);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
+      onUpdate(products);
+    },
+    (error) => {
+      console.error("listenToActiveProducts error:", error);
+    }
+  );
 }
 
 export async function getProducts(): Promise<Product[]> {
@@ -309,10 +314,15 @@ export function listenToPendingProducts(onUpdate: (products: Product[]) => void)
     where("status", "==", "pending"),
     orderBy("createdAt", "desc"),
   );
-  return onSnapshot(q, (snapshot) => {
-    const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
-    onUpdate(products);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
+      onUpdate(products);
+    },
+    (error) => {
+      console.error("listenToPendingProducts error:", error);
+    }
+  );
 }
 
 export async function getProductsByCreator(uid: string): Promise<Product[]> {
@@ -331,10 +341,15 @@ export function listenToProductsByCreator(uid: string, onUpdate: (products: Prod
     where("createdBy", "==", uid),
     orderBy("createdAt", "desc"),
   );
-  return onSnapshot(q, (snapshot) => {
-    const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
-    onUpdate(products);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      const products = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Product, "id">) }));
+      onUpdate(products);
+    },
+    (error) => {
+      console.error("listenToProductsByCreator error:", error);
+    }
+  );
 }
 
 export async function getTotalProductsCount(): Promise<number> {
@@ -343,9 +358,14 @@ export async function getTotalProductsCount(): Promise<number> {
 }
 
 export function listenToTotalProductsCount(onUpdate: (count: number) => void): () => void {
-  return onSnapshot(collection(db, "products"), (snapshot) => {
-    onUpdate(snapshot.size);
-  });
+  return onSnapshot(collection(db, "products"), 
+    (snapshot) => {
+      onUpdate(snapshot.size);
+    },
+    (error) => {
+      console.error("listenToTotalProductsCount error:", error);
+    }
+  );
 }
 
 export async function getTotalStockCount(): Promise<number> {
@@ -357,13 +377,18 @@ export async function getTotalStockCount(): Promise<number> {
 }
 
 export function listenToTotalStockCount(onUpdate: (count: number) => void): () => void {
-  return onSnapshot(collection(db, "products"), (snapshot) => {
-    const total = snapshot.docs.reduce((sum, docSnap) => {
-      const data = docSnap.data() as { stock?: number };
-      return sum + (typeof data.stock === 'number' ? data.stock : 0);
-    }, 0);
-    onUpdate(total);
-  });
+  return onSnapshot(collection(db, "products"), 
+    (snapshot) => {
+      const total = snapshot.docs.reduce((sum, docSnap) => {
+        const data = docSnap.data() as { stock?: number };
+        return sum + (typeof data.stock === 'number' ? data.stock : 0);
+      }, 0);
+      onUpdate(total);
+    },
+    (error) => {
+      console.error("listenToTotalStockCount error:", error);
+    }
+  );
 }
 
 export async function getTotalItemsSold(): Promise<number> {
@@ -376,14 +401,19 @@ export async function getTotalItemsSold(): Promise<number> {
 }
 
 export function listenToTotalItemsSold(onUpdate: (count: number) => void): () => void {
-  return onSnapshot(collection(db, "sales"), (snapshot) => {
-    const total = snapshot.docs.reduce((sum, docSnap) => {
-      const data = docSnap.data() as { items?: Array<{ quantity: number }> };
-      const itemsSum = (data.items || []).reduce((itemSum, item) => itemSum + (item.quantity || 0), 0);
-      return sum + itemsSum;
-    }, 0);
-    onUpdate(total);
-  });
+  return onSnapshot(collection(db, "sales"), 
+    (snapshot) => {
+      const total = snapshot.docs.reduce((sum, docSnap) => {
+        const data = docSnap.data() as { items?: Array<{ quantity: number }> };
+        const itemsSum = (data.items || []).reduce((itemSum, item) => itemSum + (item.quantity || 0), 0);
+        return sum + itemsSum;
+      }, 0);
+      onUpdate(total);
+    },
+    (error) => {
+      console.error("listenToTotalItemsSold error:", error);
+    }
+  );
 }
 
 export async function getTotalSalesCount(): Promise<number> {
@@ -392,9 +422,14 @@ export async function getTotalSalesCount(): Promise<number> {
 }
 
 export function listenToTotalSalesCount(onUpdate: (count: number) => void): () => void {
-  return onSnapshot(collection(db, "sales"), (snapshot) => {
-    onUpdate(snapshot.size);
-  });
+  return onSnapshot(collection(db, "sales"), 
+    (snapshot) => {
+      onUpdate(snapshot.size);
+    },
+    (error) => {
+      console.error("listenToTotalSalesCount error:", error);
+    }
+  );
 }
 
 export async function getTotalProfit(): Promise<number> {
@@ -406,23 +441,33 @@ export async function getTotalProfit(): Promise<number> {
 }
 
 export function listenToTotalProfit(onUpdate: (profit: number) => void): () => void {
-  return onSnapshot(collection(db, "sales"), (snapshot) => {
-    const total = snapshot.docs.reduce((sum, docSnap) => {
-      const data = docSnap.data() as { totalProfit?: number };
-      return sum + (typeof data.totalProfit === 'number' ? data.totalProfit : 0);
-    }, 0);
-    onUpdate(total);
-  });
+  return onSnapshot(collection(db, "sales"), 
+    (snapshot) => {
+      const total = snapshot.docs.reduce((sum, docSnap) => {
+        const data = docSnap.data() as { totalProfit?: number };
+        return sum + (typeof data.totalProfit === 'number' ? data.totalProfit : 0);
+      }, 0);
+      onUpdate(total);
+    },
+    (error) => {
+      console.error("listenToTotalProfit error:", error);
+    }
+  );
 }
 
 export function listenToTotalRevenue(onUpdate: (revenue: number) => void): () => void {
-  return onSnapshot(collection(db, "sales"), (snapshot) => {
-    const total = snapshot.docs.reduce((sum, docSnap) => {
-      const data = docSnap.data() as { totalAmount?: number };
-      return sum + (typeof data.totalAmount === 'number' ? data.totalAmount : 0);
-    }, 0);
-    onUpdate(total);
-  });
+  return onSnapshot(collection(db, "sales"), 
+    (snapshot) => {
+      const total = snapshot.docs.reduce((sum, docSnap) => {
+        const data = docSnap.data() as { totalAmount?: number };
+        return sum + (typeof data.totalAmount === 'number' ? data.totalAmount : 0);
+      }, 0);
+      onUpdate(total);
+    },
+    (error) => {
+      console.error("listenToTotalRevenue error:", error);
+    }
+  );
 }
 
 export async function createProduct(
@@ -682,23 +727,38 @@ export async function getActiveEmployeesCount(): Promise<number> {
 
 export function listenToEmployees(onUpdate: (employees: Employee[]) => void): () => void {
   const q = query(collection(db, "employees"), orderBy("createdAt", "desc"));
-  return onSnapshot(q, (snapshot) => {
-    const employees = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Employee, "id">) }));
-    onUpdate(employees);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      const employees = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Employee, "id">) }));
+      onUpdate(employees);
+    },
+    (error) => {
+      console.error("listenToEmployees error:", error);
+    }
+  );
 }
 
 export function listenToTotalEmployeesCount(onUpdate: (count: number) => void): () => void {
-  return onSnapshot(collection(db, "employees"), (snapshot) => {
-    onUpdate(snapshot.size);
-  });
+  return onSnapshot(collection(db, "employees"), 
+    (snapshot) => {
+      onUpdate(snapshot.size);
+    },
+    (error) => {
+      console.error("listenToTotalEmployeesCount error:", error);
+    }
+  );
 }
 
 export function listenToActiveEmployeesCount(onUpdate: (count: number) => void): () => void {
   const q = query(collection(db, "employees"), where("status", "==", "active"));
-  return onSnapshot(q, (snapshot) => {
-    onUpdate(snapshot.size);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      onUpdate(snapshot.size);
+    },
+    (error) => {
+      console.error("listenToActiveEmployeesCount error:", error);
+    }
+  );
 }
 
 // ==================== ORDERS ====================
@@ -834,10 +894,15 @@ export function listenToNotifications(
   if (userId) {
     q = query(q, where("userId", "==", userId));
   }
-  return onSnapshot(q, (snapshot) => {
-    const notifications = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Notification, "id">) }));
-    onUpdate(notifications);
-  });
+  return onSnapshot(q, 
+    (snapshot) => {
+      const notifications = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Omit<Notification, "id">) }));
+      onUpdate(notifications);
+    },
+    (error) => {
+      console.error("listenToNotifications error:", error);
+    }
+  );
 }
 
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
