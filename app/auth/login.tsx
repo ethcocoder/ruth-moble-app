@@ -35,13 +35,17 @@ export default function LoginScreen() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       const user = auth.currentUser;
+      console.log('User authenticated:', user);
       if (user) {
         const profile = await getUserProfile(user.uid);
+        console.log('User profile:', profile);
         if (!profile || profile.status === 'pending') {
+          console.log('Redirecting to pending (profile missing or pending)');
           router.replace('/auth/pending');
           return;
         }
 
+        console.log('User role:', profile.role);
         if (profile.role === 'admin') {
           router.replace('/admin-dashboard');
           return;
