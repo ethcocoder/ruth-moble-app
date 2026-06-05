@@ -1,124 +1,79 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './_core/firebase';
-import {
-  createUserProfile,
-  getUserProfile,
-  updateUserProfile,
-  UserProfile,
-  UserRole,
-  UserStatus,
-  ThemePreference,
-  LanguagePreference,
-  hasAdminUser,
-} from './_core/firestore';
-import i18n from './i18n';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
   user: User | null;
-  profile: UserProfile | null;
-  userRole: UserRole | null;
-  userStatus: UserStatus | null;
+  userRole: 'customer' | 'staff' | 'admin' | null;
+  userStatus: 'pending' | 'approved' | 'rejected' | 'active' | null;
   loading: boolean;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<Pick<UserProfile, 'displayName' | 'language' | 'theme'>>) => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  setUserRole: (role: 'customer' | 'staff' | 'admin') => void;
+  setUserStatus: (status: 'pending' | 'approved' | 'rejected' | 'active') => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [userRole, setUserRole] = useState<'customer' | 'staff' | 'admin' | null>(null);
+  const [userStatus, setUserStatus] = useState<'pending' | 'approved' | 'rejected' | 'active' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true);
       setUser(firebaseUser);
-
+      
       if (firebaseUser) {
-        const uid = firebaseUser.uid;
-        const savedProfile = await getUserProfile(uid);
-
-        if (savedProfile) {
-          setProfile(savedProfile);
-        } else {
-          const isAdmin = !(await hasAdminUser());
-          const role: UserRole = isAdmin ? 'admin' : 'staff';
-          const status: UserStatus = isAdmin ? 'approved' : 'pending';
-          const newProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
-            uid,
-            email: firebaseUser.email ?? '',
-            displayName: firebaseUser.displayName ?? '',
-            role,
-            status,
-            language: 'en',
-            theme: 'light',
-          };
-          await createUserProfile(newProfile);
-          setProfile({ ...newProfile, createdAt: null, updatedAt: null });
-        }
+        // Load user role and status from AsyncStorage
+        const savedRole = await AsyncStorage.getItem(`user_role_${firebaseUser.uid}`);
+        const savedStatus = await AsyncStorage.getItem(`user_status_${firebaseUser.uid}`);
+        
+        if (savedRole) setUserRole(savedRole as any);
+        if (savedStatus) setUserStatus(savedStatus as any);
       } else {
-        setProfile(null);
+        setUserRole(null);
+        setUserStatus(null);
       }
-
+      
       setLoading(false);
     });
 
     return unsubscribe;
   }, []);
 
-  // Sync i18n language with profile language
-  useEffect(() => {
-    if (profile?.language) {
-      i18n.changeLanguage(profile.language);
-    }
-  }, [profile?.language]);
-
-  const logout = useCallback(async () => {
+  const logout = async () => {
     await signOut(auth);
     setUser(null);
-    setProfile(null);
-  }, []);
+    setUserRole(null);
+    setUserStatus(null);
+  };
 
-  const updateProfile = useCallback(
-    async (updates: Partial<Pick<UserProfile, 'displayName' | 'language' | 'theme'>>) => {
-      if (!user) return;
-      const uid = user.uid;
-      await updateUserProfile(uid, updates);
-      setProfile((prev) => (prev ? { ...prev, ...updates } : prev));
-    },
-    [user],
-  );
+  const updateUserRole = (role: 'customer' | 'staff' | 'admin') => {
+    setUserRole(role);
+    if (user) {
+      AsyncStorage.setItem(`user_role_${user.uid}`, role);
+    }
+  };
 
-  const changePassword = useCallback(
-    async (currentPassword: string, newPassword: string) => {
-      if (!user || !user.email) {
-        throw new Error('User not found');
-      }
-      
-      // Re-authenticate the user first
-      const credential = EmailAuthProvider.credential(user.email, currentPassword);
-      await reauthenticateWithCredential(user, credential);
-      
-      // Update password
-      await updatePassword(user, newPassword);
-    },
-    [user],
-  );
+  const updateUserStatus = (status: 'pending' | 'approved' | 'rejected' | 'active') => {
+    setUserStatus(status);
+    if (user) {
+      AsyncStorage.setItem(`user_status_${user.uid}`, status);
+    }
+  };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        profile,
-        userRole: profile?.role ?? null,
-        userStatus: profile?.status ?? null,
+        userRole,
+        userStatus,
         loading,
         logout,
-        updateProfile,
-        changePassword,
+        setUserRole: updateUserRole,
+        setUserStatus: updateUserStatus,
       }}
     >
       {children}
