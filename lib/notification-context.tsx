@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useAuthContext } from './auth-context';
-import { listenToNotifications, Notification, markNotificationAsRead, markAllNotificationsAsRead } from './_core/firestore';
+import { listenToNotifications, Notification, markNotificationAsRead, markAllNotificationsAsRead, getUserProfile } from './_core/firestore';
+import type { UserProfile } from './_core/firestore';
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -13,9 +14,28 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const { user, profile } = useAuthContext();
+  const { user } = useAuthContext();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  // Load user profile when user changes
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user) {
+        setProfile(null);
+        return;
+      }
+      try {
+        const userProfile = await getUserProfile(user.uid);
+        setProfile(userProfile);
+      } catch (error) {
+        console.error('Error loading user profile for notifications:', error);
+        setProfile(null);
+      }
+    };
+    loadProfile();
+  }, [user]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
